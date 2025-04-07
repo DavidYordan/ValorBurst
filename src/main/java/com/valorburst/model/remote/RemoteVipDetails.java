@@ -1,5 +1,7 @@
 package com.valorburst.model.remote;
 
+import java.math.BigDecimal;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -19,7 +21,7 @@ public class RemoteVipDetails {
     private Integer vipNameType;
 
     @Column(name = "money")
-    private Double money;
+    private BigDecimal money;
 
     @Column(name = "language_type")
     private String languageType;

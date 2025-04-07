@@ -7,15 +7,14 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
-@Table(name = "mission_details")
+@Table(name = "mission_details_compensation")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MissionDetails {
+public class MissionDetailsCompensation {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "mission_details_id")
     private Integer missionDetailsId;
 
@@ -28,13 +27,13 @@ public class MissionDetails {
     @Column(name = "type")
     private Integer type;
 
-    @Column(name = "cost") // 花费
+    @Column(name = "cost")
     private BigDecimal cost;
 
-    @Column(name = "rate") // 比率
+    @Column(name = "rate")
     private BigDecimal rate;
 
-    @Column(name = "money") // 收益
+    @Column(name = "money")
     private BigDecimal money;
 
     @Column(name = "invitee_id")
@@ -46,8 +45,8 @@ public class MissionDetails {
     @Column(name = "continuous")
     private Integer continuous;
 
-    @Column(name = "executing")
-    private Boolean executing;
+    @Column(name = "course_details_id")
+    private Integer courseDetailsId;
 
     @Column(name = "execute_time")
     private Instant executeTime;

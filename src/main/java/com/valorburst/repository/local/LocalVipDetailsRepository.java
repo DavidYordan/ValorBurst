@@ -1,6 +1,9 @@
 package com.valorburst.repository.local;
 
 import com.valorburst.model.local.LocalVipDetails;
+
+import java.math.BigDecimal;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -12,5 +15,5 @@ public interface LocalVipDetailsRepository extends JpaRepository<LocalVipDetails
         where lvd.vipNameType = :vipNameType
         and lvd.languageType = :languageType
     """)
-    Double findMoney(Integer vipNameType, String languageType);
+    BigDecimal findMoney(Integer vipNameType, String languageType);
 }

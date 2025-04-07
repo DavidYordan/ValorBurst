@@ -1,5 +1,7 @@
 package com.valorburst.model.remote;
 
+import java.math.BigDecimal;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -12,6 +14,7 @@ import lombok.*;
 public class InviteMoney {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Integer id;
 
@@ -19,11 +22,11 @@ public class InviteMoney {
     private Integer userId;
 
     @Column(name = "money_sum")
-    private Double moneySum;
+    private BigDecimal moneySum;
 
     @Column(name = "money")
-    private Double money;
+    private BigDecimal money;
 
     @Column(name = "cash_out")
-    private Double cashOut;
+    private BigDecimal cashOut;
 }

@@ -13,6 +13,24 @@ import java.util.Optional;
 
 public interface TbUserRepository extends JpaRepository<TbUser, Integer> {
 
+    // 通过invitationCode查询用户
+    Optional<TbUser> findByInvitationCode(String invitationCode);
+
+    // 通过inviterCode查询用户
+    Optional<TbUser> findByInviterCode(String inviterCode);
+
+    // 通过inviterCode及1-15天内取1个随机用户
+        @Query(value = """
+        SELECT * FROM tb_user
+        WHERE inviter_code = :inviterCode
+        AND platform = 'h5.'
+        AND create_time <= NOW() - INTERVAL 24 HOUR
+        AND create_time >= NOW() - INTERVAL 15 DAY
+        ORDER BY RAND()
+        LIMIT 1
+        """, nativeQuery = true)
+    Optional<TbUser> findOneRandom(@Param("inviterCode") String inviterCode);
+
     // 通过userId查询用户
     @Query(value = """
         SELECT 

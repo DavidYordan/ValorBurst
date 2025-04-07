@@ -1,7 +1,7 @@
 package com.valorburst.model.remote;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -16,6 +16,7 @@ import lombok.*;
 public class TbUser {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id")
     private Integer userId;
 
@@ -44,10 +45,10 @@ public class TbUser {
     private String password;
 
     @Column(name = "create_time")
-    private LocalDateTime createTime;
+    private Instant createTime;
 
     @Column(name = "update_time")
-    private LocalDateTime updateTime;
+    private Instant updateTime;
 
     @Column(name = "apple_id")
     private String appleId;
@@ -89,7 +90,7 @@ public class TbUser {
     private BigDecimal twoRate;
 
     @Column(name = "on_line_time")
-    private LocalDateTime onLineTime;
+    private Instant onLineTime;
 
     @Column(name = "recipient")
     private String recipient;

@@ -1,6 +1,6 @@
 package com.valorburst.model.local;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -27,10 +27,10 @@ public class TelegramMessage {
     private String messageText;
 
     @Column(name = "create_time")
-    private LocalDateTime createTime;
+    private Instant createTime;
 
     @PrePersist
     public void prePersist() {
-        this.createTime = LocalDateTime.now();
+        this.createTime = Instant.now();
     }
 }

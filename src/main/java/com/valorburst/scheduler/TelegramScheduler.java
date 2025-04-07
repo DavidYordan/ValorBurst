@@ -1,8 +1,8 @@
 package com.valorburst.scheduler;
 
 import com.valorburst.config.AppProperties;
-import com.valorburst.model.local.LocalTelegramMessage;
-import com.valorburst.repository.local.LocalTelegramMessageRepository;
+import com.valorburst.model.local.TelegramMessage;
+import com.valorburst.repository.local.TelegramMessageRepository;
 import com.valorburst.service.TelegramBotService;
 import com.valorburst.util.DedupingExecutor;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -25,7 +25,7 @@ import java.util.List;
 public class TelegramScheduler {
 
     private final AppProperties appProperties;
-    private final LocalTelegramMessageRepository messageRepository;
+    private final TelegramMessageRepository messageRepository;
     private final TelegramBotService telegramBotService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -66,14 +66,14 @@ public class TelegramScheduler {
         try {
             long total = messageRepository.count();
             if (total > 15) {
-                List<LocalTelegramMessage> oldestMessages = messageRepository
+                List<TelegramMessage> oldestMessages = messageRepository
                         .findAll()
                         .stream()
-                        .sorted(Comparator.comparing(LocalTelegramMessage::getCreateTime))
+                        .sorted(Comparator.comparing(TelegramMessage::getCreateTime))
                         .limit(total - 15)
                         .toList();
 
-                for (LocalTelegramMessage message : oldestMessages) {
+                for (TelegramMessage message : oldestMessages) {
                     Long messageId = message.getMessageId(); 
                     dedupingExecutor.execute(() -> {
                         try {

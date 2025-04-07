@@ -25,6 +25,7 @@ public class EmailGenerator {
     private static final List<UsernameStrategy> STRATEGIES = new ArrayList<>();
 
     static {
+        REGION_TO_LOCALE.put("en_AU", "en_AU");
         REGION_TO_LOCALE.put("zh_TW", "zh_TW");
         REGION_TO_LOCALE.put("en_US", "en_US");
         REGION_TO_LOCALE.put("th_TH", "th_TH");
@@ -194,6 +195,7 @@ public class EmailGenerator {
 
     private static String resolveRegion(String shortCode) {
         return switch (shortCode) {
+            case "au" -> "en_AU";
             case "zh" -> "zh_TW";
             case "th" -> "th_TH";
             case "vi" -> "vi_VN";
@@ -245,16 +247,17 @@ public class EmailGenerator {
 
     // ==== Test ====
     public static void main(String[] args) {
-        for (int i = 0; i < 10; i++) {
-            System.out.println(generateEmail("zh"));
-            System.out.println(generateEmail("th"));
-            System.out.println(generateEmail("vi"));
-            System.out.println(generateEmail("en"));
-            System.out.println(generateEmail("sg"));
-            System.out.println(generateEmail("my"));
-            System.out.println(generateEmail("id"));
-            System.out.println(generateEmail("ca"));
-            System.out.println(generateEmail("gb"));
+        for (int i = 0; i < 100; i++) {
+            System.out.println(generateEmail("au"));
+            // System.out.println(generateEmail("zh"));
+            // System.out.println(generateEmail("th"));
+            // System.out.println(generateEmail("vi"));
+            // System.out.println(generateEmail("en"));
+            // System.out.println(generateEmail("sg"));
+            // System.out.println(generateEmail("my"));
+            // System.out.println(generateEmail("id"));
+            // System.out.println(generateEmail("ca"));
+            // System.out.println(generateEmail("gb"));
         }
     }
 }

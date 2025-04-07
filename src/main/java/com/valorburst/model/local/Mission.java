@@ -3,7 +3,8 @@ package com.valorburst.model.local;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.time.Instant;
 
 @Entity
 @Table(name = "mission")
@@ -22,25 +23,25 @@ public class Mission {
     private Integer userId;
 
     @Column(name = "expect_money") // 预期收益
-    private Double expectMoney;
+    private BigDecimal expectMoney;
 
     @Column(name = "overflow") // 允许溢出
-    private Double overflow;
+    private BigDecimal overflow;
 
     @Column(name = "start_time")
-    private LocalDateTime startTime; // 开始时间
+    private Instant startTime; // 开始时间
 
     @Column(name = "end_time") // 结束时间
-    private LocalDateTime endTime;
+    private Instant endTime;
 
     @Column(name = "status") // 0:暂停中 1:进行中
     private Boolean status;
 
     @Column(name = "money") // 已获得收益
-    private Double money;
+    private BigDecimal money;
 
     @Column(name = "today_money") // 今日收益
-    private Double todayMoney;
+    private BigDecimal todayMoney;
 
     // 1: vip折扣1, 2: vip月1, 3: vip季1, 4: vip年1,
     // 5: vip折扣2, 6: vip月2, 7: vip季2, 8: vip年2,
@@ -49,7 +50,7 @@ public class Mission {
     private Integer type;
 
     @Column(name = "execute_time") // 下次执行时间
-    private LocalDateTime executeTime;
+    private Instant executeTime;
 
     @Column(name = "language_type")
     private String languageType;

@@ -4,16 +4,20 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "course_price")
+@Table(name = "setting")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CoursePrice {
+public class Setting {
 
     @Id
+    @Column(name = "id")
     private Integer id;
 
-    @Column(name = "price", unique = true)
-    private Double price;
+    @Column(name = "key")
+    private String key;
+
+    @Column(name = "value")
+    private String value;
 }

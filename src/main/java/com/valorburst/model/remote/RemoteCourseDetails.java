@@ -1,6 +1,7 @@
 package com.valorburst.model.remote;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.time.Instant;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -12,7 +13,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CourseDetails {
+public class RemoteCourseDetails {
 
     @Id
     @Column(name = "course_details_id")
@@ -28,7 +29,10 @@ public class CourseDetails {
     private String videoUrl;
 
     @Column(name = "create_time")
-    private LocalDateTime createTime;
+    private Instant createTime;
+
+    @Column(name = "update_time")
+    private Instant updateTime;
 
     @Column(name = "title_img")
     private String titleImg;
@@ -40,7 +44,7 @@ public class CourseDetails {
     private Integer goodNum;
 
     @Column(name = "price")
-    private Double price;
+    private BigDecimal price;
 
     @Column(name = "is_price")
     private Integer isPrice;

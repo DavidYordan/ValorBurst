@@ -4,8 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Table;
 
 import java.lang.reflect.Field;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,9 +25,11 @@ public class JpaSqlBuilder {
             Column column = field.getAnnotation(Column.class);
             if (column == null) continue;
 
-            columns.add(column.name());
             try {
-                values.add(field.get(entity));
+                Object value = field.get(entity);
+                if (value == null) continue;
+                columns.add(column.name());
+                values.add(value);
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
@@ -106,8 +107,8 @@ public class JpaSqlBuilder {
             return "NULL";
         } else if (val instanceof Number) {
             return val.toString();
-        } else if (val instanceof LocalDateTime) {
-            return "'" + ((LocalDateTime) val).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "'";
+        } else if (val instanceof Instant) {
+            return "'" + ((Instant) val).toString() + "'";
         } else {
             return "'" + val.toString().replace("'", "''") + "'";
         }

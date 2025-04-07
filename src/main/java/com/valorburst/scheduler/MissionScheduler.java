@@ -19,7 +19,7 @@ public class MissionScheduler {
         missionService.generateInitMissions();
     }
 
-    @Scheduled(fixedDelay = 60 * 1000)
+    @Scheduled(fixedDelay = 1 * 1000)
     public void schedulerExecute() {
         missionService.executeDueMissions();
     }

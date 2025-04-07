@@ -1,5 +1,7 @@
 package com.valorburst.model.remote.projection;
 
+import java.math.BigDecimal;
+
 public interface UserRemoteProjection {
     Integer getUserId();
     String getUserName();
@@ -8,11 +10,11 @@ public interface UserRemoteProjection {
     String getPlatform();
     String getInvitationCode();
     String getInviterCode();
-    Double getRate();
-    Double getTwoRate();
-    Double getMoneySum();
-    Double getMoney();
-    Double getCashOut();
-    Double getCashOutStay();
-    Double getMoneyWallet();
+    BigDecimal getRate();
+    BigDecimal getTwoRate();
+    BigDecimal getMoneySum();
+    BigDecimal getMoney();
+    BigDecimal getCashOut();
+    BigDecimal getCashOutStay();
+    BigDecimal getMoneyWallet();
 }

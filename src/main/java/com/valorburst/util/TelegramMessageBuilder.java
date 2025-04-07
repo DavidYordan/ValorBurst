@@ -119,11 +119,15 @@ public class TelegramMessageBuilder {
         StringBuilder sb = new StringBuilder();
         sb.append("⚠️ 任务超时!（共").append(details.size()).append("条）\n\n");
 
-        for (MissionDetails d : details) {
-            sb.append(d.getMissionDetailsId()).append(" | ")
-              .append(d.getType()).append(" | ")
-              .append(d.getExecuteTime()).append("\n\n");
+        if (details.size() > 10) {
+            details = details.subList(0, 10);
         }
+
+        for (MissionDetails d : details) {
+          sb.append(d.getMissionDetailsId()).append(" | ")
+            .append(d.getType()).append(" | ")
+            .append(d.getExecuteTime()).append("\n");
+      }
 
         return sb.toString();
     }

@@ -1,5 +1,6 @@
 package com.valorburst.service.impl;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -50,6 +51,7 @@ public class UsersServiceImpl implements UsersService{
     }
 
     private User mapToLocal(UserRemoteProjection p) {
+        BigDecimal bigZero = BigDecimal.ZERO;
         return User.builder()
                 .userId(p.getUserId())
                 .userName(p.getUserName())
@@ -58,13 +60,13 @@ public class UsersServiceImpl implements UsersService{
                 .platform(p.getPlatform())
                 .invitationCode(p.getInvitationCode())
                 .inviterCode(p.getInviterCode())
-                .rate(p.getRate() != null ? p.getRate() : 0.0)
-                .twoRate(p.getTwoRate() != null ? p.getTwoRate() : 0.0)
-                .moneySum(p.getMoneySum() != null ? p.getMoneySum() : 0.0)
-                .money(p.getMoney() != null ? p.getMoney() : 0.0)
-                .cashOut(p.getCashOut() != null ? p.getCashOut() : 0.0)
-                .cashOutStay(p.getCashOutStay() != null ? p.getCashOutStay() : 0.0)
-                .moneyWallet(p.getMoneyWallet() != null ? p.getMoneyWallet() : 0.0)
+                .rate(p.getRate() != null ? p.getRate() : bigZero)
+                .twoRate(p.getTwoRate() != null ? p.getTwoRate() : bigZero)
+                .moneySum(p.getMoneySum() != null ? p.getMoneySum() : bigZero)
+                .money(p.getMoney() != null ? p.getMoney() : bigZero)
+                .cashOut(p.getCashOut() != null ? p.getCashOut() : bigZero)
+                .cashOutStay(p.getCashOutStay() != null ? p.getCashOutStay() : bigZero)
+                .moneyWallet(p.getMoneyWallet() != null ? p.getMoneyWallet() : bigZero)
                 .build();
     }
 }

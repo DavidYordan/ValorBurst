@@ -3,7 +3,8 @@ package com.valorburst.model.local;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.time.Instant;
 
 @Entity
 @Table(name = "mission_details_archive")
@@ -14,7 +15,6 @@ import java.time.LocalDateTime;
 public class MissionDetailsArchive {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "mission_details_id")
     private Integer missionDetailsId;
 
@@ -28,16 +28,31 @@ public class MissionDetailsArchive {
     private Integer type;
 
     @Column(name = "cost")
-    private Double cost;
+    private BigDecimal cost;
 
     @Column(name = "rate")
-    private Double rate;
+    private BigDecimal rate;
 
     @Column(name = "money")
-    private Double money;
+    private BigDecimal money;
+
+    @Column(name = "invitee_id")
+    private Integer inviteeId;
+
+    @Column(name = "invitee_name")
+    private String inviteeName;
+
+    @Column(name = "continuous")
+    private Integer continuous;
+
+    @Column(name = "course_details_id")
+    private Integer courseDetailsId;
+
+    @Column(name = "execute_time")
+    private Instant executeTime;
 
     @Column(name = "archive_time")
-    private LocalDateTime archiveTime;
+    private Instant archiveTime;
 
     @Column(name = "language_type")
     private String languageType;

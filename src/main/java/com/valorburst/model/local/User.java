@@ -1,5 +1,7 @@
 package com.valorburst.model.local;
 
+import java.math.BigDecimal;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -40,23 +42,23 @@ public class User {
     private String inviterCode;
 
     @Column(name = "rate")
-    private Double rate;
+    private BigDecimal rate;
 
     @Column(name = "two_rate")
-    private Double twoRate;
+    private BigDecimal twoRate;
 
     @Column(name = "money_sum")
-    private Double moneySum;
+    private BigDecimal moneySum;
 
     @Column(name = "money")
-    private Double money;
+    private BigDecimal money;
 
     @Column(name = "cash_out")
-    private Double cashOut;
+    private BigDecimal cashOut;
 
     @Column(name = "cash_out_stay")
-    private Double cashOutStay;
+    private BigDecimal cashOutStay;
 
     @Column(name = "money_wallet")
-    private Double moneyWallet;
+    private BigDecimal moneyWallet;
 }

@@ -1,5 +1,7 @@
 package com.valorburst.model.remote;
 
+import java.math.BigDecimal;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -53,7 +55,7 @@ public class CashOut {
     private Integer classify;
 
     @Column(name = "rate")
-    private Double rate;
+    private BigDecimal rate;
 
     @Column(name = "recipient")
     private String recipient;

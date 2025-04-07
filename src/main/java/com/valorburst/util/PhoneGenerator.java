@@ -16,6 +16,7 @@ public class PhoneGenerator {
     private static final Map<String, String> SHORT_TO_REGION = new HashMap<>();
 
     static {
+        REGION_CONFIG.put("en_AU", new RegionPhoneConfig(9, "+61"));
         REGION_CONFIG.put("zh_TW", new RegionPhoneConfig(10, "+886"));
         REGION_CONFIG.put("en_US", new RegionPhoneConfig(10, "+1"));
         REGION_CONFIG.put("th_TH", new RegionPhoneConfig(9, "+66"));
@@ -26,6 +27,7 @@ public class PhoneGenerator {
         REGION_CONFIG.put("en_CA", new RegionPhoneConfig(10, "+1"));
         REGION_CONFIG.put("en_GB", new RegionPhoneConfig(10, "+44"));
 
+        SHORT_TO_REGION.put("au", "en_AU");
         SHORT_TO_REGION.put("zh", "zh_TW");
         SHORT_TO_REGION.put("en", "en_US");
         SHORT_TO_REGION.put("th", "th_TH");
@@ -83,15 +85,16 @@ public class PhoneGenerator {
 
     public static void main(String[] args) {
         for (int i = 0; i < 10; i++) {
-            System.out.println(generatePhone("zh"));
-            System.out.println(generatePhone("en"));
-            System.out.println(generatePhone("th"));
-            System.out.println(generatePhone("vi"));
-            System.out.println(generatePhone("sg"));
-            System.out.println(generatePhone("my"));
-            System.out.println(generatePhone("id"));
-            System.out.println(generatePhone("ca"));
-            System.out.println(generatePhone("gb"));
+            System.out.println(generatePhone("au"));
+            // System.out.println(generatePhone("zh"));
+            // System.out.println(generatePhone("en"));
+            // System.out.println(generatePhone("th"));
+            // System.out.println(generatePhone("vi"));
+            // System.out.println(generatePhone("sg"));
+            // System.out.println(generatePhone("my"));
+            // System.out.println(generatePhone("id"));
+            // System.out.println(generatePhone("ca"));
+            // System.out.println(generatePhone("gb"));
         }
     }
 }
