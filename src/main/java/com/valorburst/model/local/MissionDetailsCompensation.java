@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "mission_details_compensation")
@@ -45,11 +45,8 @@ public class MissionDetailsCompensation {
     @Column(name = "continuous")
     private Integer continuous;
 
-    @Column(name = "course_details_id")
-    private Integer courseDetailsId;
-
     @Column(name = "execute_time")
-    private Instant executeTime;
+    private LocalDateTime executeTime;
 
     @Column(name = "language_type")
     private String languageType;

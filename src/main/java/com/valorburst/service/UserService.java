@@ -5,7 +5,8 @@ import java.util.Optional;
 
 import com.valorburst.model.local.User;
 
-public interface UsersService {
-    List<User> syncAllUsers();
+public interface UserService {
+    void syncAllUsers();
+    List<User> getAllUsers();
     Optional<User> updateUserByInput(String input);
 }

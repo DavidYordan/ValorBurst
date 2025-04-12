@@ -3,6 +3,7 @@ package com.valorburst.repository.local;
 import com.valorburst.model.local.MissionDetailsArchive;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -26,12 +27,27 @@ public interface MissionDetailsArchiveRepository extends JpaRepository<MissionDe
         """, nativeQuery = true)
     BigDecimal sumMoneyByMissionIdAndToday(Integer missionId);
 
-    // 按mission_id统计money为0的数量
+    // 按mission_id统计type为0的数量
     @Query(value = """
         SELECT COUNT(*)
         FROM mission_details_archive
         WHERE mission_id = :missionId
-        AND money = 0
+        AND type = 0
         """, nativeQuery = true)
-    Integer countMoneyZeroByMissionId(Integer missionId);
+    Integer countTypeZeroByMissionId(Integer missionId);
+
+    @Query(value = """
+        SELECT MAX(execute_time)
+        FROM mission_details_archive
+        WHERE mission_id = :missionId
+        """, nativeQuery = true)
+    LocalDateTime findMaxExecuteTimeByMissionId(Integer missionId);
+
+    @Query(value = """
+        SELECT MAX(execute_time)
+        FROM mission_details_archive
+        WHERE mission_id = :missionId
+        AND continuous > 0
+        """, nativeQuery = true)
+    LocalDateTime findMaxExecuteTimeByMissionIdAndContinuous(Integer missionId);
 }

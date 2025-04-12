@@ -1,7 +1,7 @@
 package com.valorburst.model.local;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 import com.valorburst.model.remote.RemoteCourse;
 
@@ -49,10 +49,10 @@ public class LocalCourse {
     private Integer isDelete;
 
     @Column(name = "create_time")
-    private Instant createTime;
+    private LocalDateTime createTime;
 
     @Column(name = "update_time")
-    private Instant updateTime;
+    private LocalDateTime updateTime;
 
     @Column(name = "msg_url")
     private String msgUrl;
@@ -75,7 +75,7 @@ public class LocalCourse {
     @Column(name = "banner_img")
     private String bannerImg;
 
-    @Column(name = "over")
+    @Column(name = "`over`")
     private Integer over;
 
     @Column(name = "is_price")

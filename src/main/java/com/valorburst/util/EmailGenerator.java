@@ -8,6 +8,7 @@ import net.sourceforge.pinyin4j.PinyinHelper;
 import java.io.InputStream;
 import java.text.Normalizer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public class EmailGenerator {
@@ -18,7 +19,7 @@ public class EmailGenerator {
     private static final Map<String, Map<String, Double>> DOMAIN_WEIGHTS = loadDomainWeights();
     private static final Map<String, String> REGION_TO_LOCALE = new HashMap<>();
     private static final Map<String, Map<String, Double>> FALLBACK_LOCALE_WEIGHTS = new HashMap<>();
-    private static final Map<String, Faker> FAKER_CACHE = new HashMap<>();
+    private static final Map<String, Faker> FAKER_CACHE = new ConcurrentHashMap<>();
     private static final Random RANDOM = new Random();
 
     private static final double[] DIGITS_WEIGHTS = {0.5, 0.1, 0.15, 0.2, 0.15};

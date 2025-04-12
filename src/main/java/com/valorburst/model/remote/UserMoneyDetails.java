@@ -1,7 +1,7 @@
 package com.valorburst.model.remote;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -47,7 +47,7 @@ public class UserMoneyDetails {
     private String content;
 
     @Column(name = "create_time")
-    private Instant createTime;
+    private LocalDateTime createTime;
 
     @Column(name = "language_type")
     private String languageType;

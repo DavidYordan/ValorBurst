@@ -2,7 +2,8 @@ package com.valorburst.util;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,12 +14,14 @@ import org.springframework.util.DigestUtils;
 
 import com.valorburst.dto.JdbcDto;
 import com.valorburst.model.local.LocalCommonInfo;
+import com.valorburst.model.local.Mission;
 import com.valorburst.model.local.MissionDetails;
 import com.valorburst.model.local.User;
 import com.valorburst.model.remote.Invite;
 import com.valorburst.model.remote.TbUser;
 import com.valorburst.model.remote.UserMoneyDetails;
 import com.valorburst.repository.local.LocalCommonInfoRepository;
+import com.valorburst.repository.local.MissionRepository;
 import com.valorburst.repository.local.UserRepository;
 import com.valorburst.repository.remote.TbUserRepository;
 
@@ -31,8 +34,11 @@ import lombok.extern.slf4j.Slf4j;
 public class MissionDetailsBuilder {
 
     private final LocalCommonInfoRepository localCommonInfoRepository;
+    private final MissionRepository missionRepository;
     private final UserRepository userRepository;
     private final TbUserRepository tbUserRepository;
+
+    private static final BigDecimal BIGZERO = BigDecimal.ZERO;
 
     public JdbcDto buildJdbc(MissionDetails details) {
         Integer type = details.getType();
@@ -69,27 +75,23 @@ public class MissionDetailsBuilder {
     }
 
     private JdbcDto buildJdbcEmpty(MissionDetails details) {
-        log.info("开始处理Empty任务: {}", details);
-
         Integer userId = details.getUserId();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在: " + userId));
 
-        Optional<TbUser> inviter = tbUserRepository.findByInvitationCode(user.getInviterCode());
-
         String email = null;
         String phone = null;
-        if (Math.random() > 0.5) {
+        if (Math.random() > 0.55) {
             email = EmailGenerator.generateEmail(details.getLanguageType());
         } else {
             phone = PhoneGenerator.generatePhone(details.getLanguageType());
         }
         String username = maskUsername(email != null ? email : phone);
 
-        Instant executeTime = details.getExecuteTime();
+        LocalDateTime executeTime = details.getExecuteTime();
 
-        BigDecimal rate1 = parseBigDecimalById(localCommonInfoRepository.findById(420));
-        BigDecimal rate2 = parseBigDecimalById(localCommonInfoRepository.findById(421));
+        BigDecimal rate1 = parseBigDecimal(localCommonInfoRepository.findById(420));
+        BigDecimal rate2 = parseBigDecimal(localCommonInfoRepository.findById(421));
 
         TbUser tbUser = TbUser.builder()
                 .userName(username)
@@ -107,7 +109,6 @@ public class MissionDetailsBuilder {
 
         TbUser saveTbUser = tbUserRepository.save(tbUser);
         Integer inviteeId = saveTbUser.getUserId();
-        log.info("生成新用户: {}", inviteeId);
         TbUser updateTbUser = TbUser.builder()
                 .userId(inviteeId)
                 .invitationCode(InvitationCodeUtil.toSerialCode(inviteeId))
@@ -117,64 +118,57 @@ public class MissionDetailsBuilder {
                 .userId(userId)
                 .inviteeUserId(inviteeId)
                 .state(1)
-                .money(BigDecimal.ZERO)
+                .money(BIGZERO)
                 .createTime(executeTime)
                 .userType(1)
                 .build();
-
-        Invite invite2 = null;
-        if (inviter.isPresent()) {
-            invite2 = Invite.builder()
-                .userId(inviter.get().getUserId())
-                .inviteeUserId(inviteeId)
-                .state(1)
-                .money(BigDecimal.ZERO)
-                .createTime(executeTime)
-                .userType(2)
-                .build();
-        }
-
-        log.info("准备生成SQL");
+                
         StringBuilder sql = new StringBuilder();
+
         sql.append(JpaSqlBuilder.buildUpdateSql(updateTbUser, List.of("userId")));
         sql.append(JpaSqlBuilder.buildInsertSql(invite1));
-        if (invite2 != null) {
-            sql.append(JpaSqlBuilder.buildInsertSql(invite2));
+
+        TbUser inviter = tbUserRepository.findByInvitationCode(user.getInviterCode())
+                .orElse(null);
+        if (inviter != null) {
+            sql.append(JpaSqlBuilder.buildInsertSql(Invite.builder()
+                    .userId(inviter.getUserId())
+                    .inviteeUserId(inviteeId)
+                    .state(1)
+                    .money(BIGZERO)
+                    .createTime(executeTime)
+                    .userType(2)
+                    .build()));
         }
+
         return JdbcDto.builder()
                 .sql(sql.toString())
-                .userId(userId)
+                .userId(inviteeId)
                 .username(username)
                 .build();
     }
 
     private JdbcDto buildJdbcVip1(MissionDetails details, int vipType) {
-        log.info("开始处理VIP1任务: {}", details);
-
         Integer userId = details.getUserId();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在: " + userId));
 
-        Optional<TbUser> inviter = tbUserRepository.findByInvitationCode(user.getInviterCode());
-
         String email = null;
         String phone = null;
-        if (Math.random() > 0.5) {
+        if (Math.random() > 0.55) {
             email = EmailGenerator.generateEmail(details.getLanguageType());
         } else {
             phone = PhoneGenerator.generatePhone(details.getLanguageType());
         }
         String username = maskUsername(email != null ? email : phone);
 
-        Instant executeTime = details.getExecuteTime();
-        Instant orderTime = offsetDateTime(executeTime, -60, -2);
-        Instant registerTime = offsetDateTime(orderTime, -300, -30);
+        LocalDateTime executeTime = details.getExecuteTime();
+        LocalDateTime orderTime = offsetDateTime(executeTime, -60, -2);
+        LocalDateTime registerTime = offsetDateTime(orderTime, -360, -30);
 
-        BigDecimal rate1 = parseBigDecimalById(localCommonInfoRepository.findById(420));
-        BigDecimal rate2 = parseBigDecimalById(localCommonInfoRepository.findById(421));
+        BigDecimal rate1 = parseBigDecimal(localCommonInfoRepository.findById(420));
+        BigDecimal rate2 = parseBigDecimal(localCommonInfoRepository.findById(421));
 
-        // user_id, user_name, email_name, password, create_time, status, platform, invitation_code,
-        // inviter_code, rate, two_rate, qd_code, ban_invitations, fake
         TbUser tbUser = TbUser.builder()
                 .userName(username)
                 .phone(phone)
@@ -191,14 +185,12 @@ public class MissionDetailsBuilder {
 
         TbUser saveTbUser = tbUserRepository.save(tbUser);
         Integer inviteeId = saveTbUser.getUserId();
-        log.info("生成新用户: {}", inviteeId);
         TbUser updateTbUser = TbUser.builder()
                 .userId(inviteeId)
                 .invitationCode(InvitationCodeUtil.toSerialCode(inviteeId))
                 .build();
 
         BigDecimal reward = details.getMoney();
-        // user_id, title, classify, type, state, money, content, create_time, language_type
         UserMoneyDetails userMoneyDetailsEn = UserMoneyDetails.builder()
                 .userId(userId)
                 .title("[First level invitation commission] First level friend name: " + username)
@@ -221,7 +213,17 @@ public class MissionDetailsBuilder {
                 .createTime(executeTime)
                 .languageType("zh")
                 .build();
-        // user_id, invitee_user_id, state, money, create_time, user_type
+        UserMoneyDetails userMoneyDetailsCht = UserMoneyDetails.builder()
+                .userId(userId)
+                .title("[一級邀請佣金]一級好友名稱：" + username)
+                .classify(2)
+                .type(1)
+                .state(1)
+                .money(reward)
+                .content("新增金額:" + reward)
+                .createTime(executeTime)
+                .languageType("cht")
+                .build();
         Invite invite1 = Invite.builder()
                 .userId(userId)
                 .inviteeUserId(inviteeId)
@@ -231,80 +233,75 @@ public class MissionDetailsBuilder {
                 .userType(1)
                 .build();
 
-        UserMoneyDetails userMoneyDetailsEn2 = null;
-        UserMoneyDetails userMoneyDetailsZh2 = null;
-        Invite invite2 = null;
-        BigDecimal reward2 = BigDecimal.ZERO;
-        if (inviter.isPresent()) {
-            TbUser inviterUser = inviter.get();
-            BigDecimal inviter2Rate2 = inviterUser.getTwoRate();
-            if (inviter2Rate2 != null && inviter2Rate2.compareTo(BigDecimal.ZERO) > 0) {
-                reward2 = reward.multiply(inviter2Rate2).setScale(2, RoundingMode.HALF_UP);
-                if (reward2.compareTo(BigDecimal.ZERO) > 0) {
-                    userMoneyDetailsEn2 = UserMoneyDetails.builder()
-                        .userId(inviterUser.getUserId())
-                        .title("[Second level invitation commission] Second level friend name: " + username)
-                        .classify(2)
-                        .type(1)
-                        .state(1)
-                        .money(reward2)
-                        .content("Increase amount: " + reward2)
-                        .createTime(executeTime)
-                        .languageType("en")
-                        .build();
-                    userMoneyDetailsZh2 = UserMoneyDetails.builder()
-                        .userId(inviterUser.getUserId())
-                        .title("[二级邀请佣金]二级好友名称：" + username)
-                        .classify(2)
-                        .type(1)
-                        .state(1)
-                        .money(reward2)
-                        .content("增加金额:" + reward2)
-                        .createTime(executeTime)
-                        .languageType("zh")
-                        .build();
-                }
-            }
-            
-            invite2 = Invite.builder()
-                .userId(inviter.get().getUserId())
-                .inviteeUserId(inviteeId)
-                .state(1)
-                .money(reward2)
-                .createTime(executeTime)
-                .userType(2)
-                .build();
-        }
-
-        log.info("准备生成SQL");
         StringBuilder sql = new StringBuilder();
         sql.append(JpaSqlBuilder.buildUpdateSql(updateTbUser, List.of("userId")));
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsEn));
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsZh));
+        sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsCht));
         sql.append(JpaSqlBuilder.buildInsertSql(invite1));
-        if (invite2 != null) {
-            sql.append(JpaSqlBuilder.buildInsertSql(invite2));
-            if (userMoneyDetailsEn2 != null) {
-                sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsEn2));
-                sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsZh2));
+           
+        sql.append("INSERT INTO `invite_money` (user_id, money_sum, money) VALUES (")
+           .append(userId).append(", ").append(reward).append(", ").append(reward)
+           .append(") ON DUPLICATE KEY UPDATE money_sum = money_sum + ")
+           .append(reward).append(", money = money + ").append(reward).append(";");
+        
+
+        TbUser inviter = tbUserRepository.findByInvitationCode(user.getInviterCode())
+                .orElse(null);
+        if (inviter != null) {
+            BigDecimal reward2 = BIGZERO;
+            BigDecimal inviter2Rate2 = inviter.getTwoRate();
+            if (inviter2Rate2 != null && inviter2Rate2.compareTo(BIGZERO) > 0) {
+                reward2 = reward.multiply(inviter2Rate2).setScale(2, RoundingMode.HALF_UP);
+                if (reward2.compareTo(BIGZERO) > 0) {
+                    sql.append(JpaSqlBuilder.buildInsertSql(UserMoneyDetails.builder()
+                            .userId(inviter.getUserId())
+                            .title("[Second level invitation commission] Second level friend name: " + username)
+                            .classify(2)
+                            .type(1)
+                            .state(1)
+                            .money(reward2)
+                            .content("Increase amount: " + reward2)
+                            .createTime(executeTime)
+                            .languageType("en")
+                            .build()));
+                    sql.append(JpaSqlBuilder.buildInsertSql(UserMoneyDetails.builder()
+                            .userId(inviter.getUserId())
+                            .title("[二级邀请佣金]二级好友名称：" + username)
+                            .classify(2)
+                            .type(1)
+                            .state(1)
+                            .money(reward2)
+                            .content("增加金额:" + reward2)
+                            .createTime(executeTime)
+                            .languageType("zh")
+                            .build()));
+                            
+                    sql.append("INSERT INTO `invite_money` (user_id, money_sum, money) VALUES (")
+                       .append(inviter.getUserId()).append(", ").append(reward2).append(", ").append(reward2)
+                       .append(") ON DUPLICATE KEY UPDATE money_sum = money_sum + ")
+                       .append(reward2).append(", money = money + ").append(reward2).append(";");
+                }
             }
+            
+            sql.append(JpaSqlBuilder.buildInsertSql(Invite.builder()
+                    .userId(inviter.getUserId())
+                    .inviteeUserId(inviteeId)
+                    .state(1)
+                    .money(reward2)
+                    .createTime(executeTime)
+                    .userType(2)
+                    .build()));
         }
-        sql.append("UPDATE `invite_money` SET money_sum = money_sum + ")
-            .append(reward).append(", money = money + ").append(reward)
-            .append(" WHERE user_id=").append(userId).append(";");
-        if (reward2.compareTo(BigDecimal.ZERO) > 0) {
-            sql.append("UPDATE `invite_money` SET money_sum = money_sum + ")
-                .append(reward2).append(", money = money + ").append(reward2)
-                .append(" WHERE user_id=").append(inviter.get().getUserId()).append(";");
-        }
+
         return JdbcDto.builder()
                 .sql(sql.toString())
-                .userId(userId)
+                .userId(inviteeId)
                 .username(username)
                 .build();
     }
 
-    private BigDecimal parseBigDecimalById(Optional<LocalCommonInfo> commonInfo) {
+    private BigDecimal parseBigDecimal(Optional<LocalCommonInfo> commonInfo) {
         if (commonInfo.isEmpty()) {
             throw new IllegalArgumentException("默认rate不存在");
         }
@@ -318,39 +315,28 @@ public class MissionDetailsBuilder {
     }
 
     private JdbcDto buildJdbcVip2(MissionDetails details, int vipType) {
-        log.info("开始处理VIP2任务: {}", details);
-    
         Integer userId = details.getUserId();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在: " + userId));
     
-        // 获取当前用户的所有一级邀请（即 tb_user 表中 inviter_code = user.invitation_code）
-        Optional<TbUser> firstLevelInvitee = tbUserRepository.findOneRandom(user.getInvitationCode());
+        TbUser firstLevelInvitee = tbUserRepository.findOneRandom(user.getInvitationCode())
+                .orElseThrow(() -> new IllegalArgumentException("该用户没有满足条件的一级邀请用户"));
     
-        if (firstLevelInvitee.isEmpty()) {
-            throw new IllegalArgumentException("该用户没有满足条件的一级邀请用户");
-        }
-    
-        // 随机选择一个一级邀请的用户
-        TbUser selectedInvitee = firstLevelInvitee.get();
-        String selectedInviteeCode = selectedInvitee.getInvitationCode();
-    
-        // 构造一个新用户（被一级用户邀请 = 二级用户）
         String email = null;
         String phone = null;
-        if (Math.random() > 0.5) {
+        if (Math.random() > 0.55) {
             email = EmailGenerator.generateEmail(details.getLanguageType());
         } else {
             phone = PhoneGenerator.generatePhone(details.getLanguageType());
         }
         String username = maskUsername(email != null ? email : phone);
     
-        Instant executeTime = details.getExecuteTime();
-        Instant orderTime = offsetDateTime(executeTime, -60, -2);
-        Instant registerTime = offsetDateTime(orderTime, -300, -30);
+        LocalDateTime executeTime = details.getExecuteTime();
+        LocalDateTime orderTime = offsetDateTime(executeTime, -60, -2);
+        LocalDateTime registerTime = offsetDateTime(orderTime, -300, -30);
     
-        BigDecimal rate1 = parseBigDecimalById(localCommonInfoRepository.findById(420));
-        BigDecimal rate2 = parseBigDecimalById(localCommonInfoRepository.findById(421));
+        BigDecimal rate1 = parseBigDecimal(localCommonInfoRepository.findById(420));
+        BigDecimal rate2 = parseBigDecimal(localCommonInfoRepository.findById(421));
     
         TbUser tbUser = TbUser.builder()
                 .userName(username)
@@ -360,7 +346,7 @@ public class MissionDetailsBuilder {
                 .createTime(registerTime)
                 .status(1)
                 .platform("h5.")
-                .inviterCode(selectedInviteeCode)  // 绑定一级邀请用户
+                .inviterCode(firstLevelInvitee.getInvitationCode())
                 .rate(rate1)
                 .twoRate(rate2)
                 .qdCode("8888")
@@ -368,7 +354,6 @@ public class MissionDetailsBuilder {
     
         TbUser saveTbUser = tbUserRepository.save(tbUser);
         Integer inviteeId = saveTbUser.getUserId();
-        log.info("生成新用户: {}", inviteeId);
     
         TbUser updateTbUser = TbUser.builder()
                 .userId(inviteeId)
@@ -399,6 +384,17 @@ public class MissionDetailsBuilder {
                 .createTime(executeTime)
                 .languageType("zh")
                 .build();
+        UserMoneyDetails userMoneyDetailsCht2 = UserMoneyDetails.builder()
+                .userId(userId)
+                .title("[二級邀請佣金]二級好友名稱：" + username)
+                .classify(2)
+                .type(1)
+                .state(1)
+                .money(reward2)
+                .content("新增金額:" + reward2)
+                .createTime(executeTime)
+                .languageType("cht")
+                .build();
     
         Invite invite2 = Invite.builder()
                 .userId(userId)  // 当前用户是二级邀请者
@@ -409,41 +405,48 @@ public class MissionDetailsBuilder {
                 .userType(2)
                 .build();
     
-        // 构建 SQL
         StringBuilder sql = new StringBuilder();
         sql.append(JpaSqlBuilder.buildUpdateSql(updateTbUser, List.of("userId")));
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsEn2));
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsZh2));
+        sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsCht2));
         sql.append(JpaSqlBuilder.buildInsertSql(invite2));
-        sql.append("UPDATE `invite_money` SET money_sum = money_sum + ")
-                .append(reward2).append(", money = money + ").append(reward2)
-                .append(" WHERE user_id=").append(userId).append(";");
+
+        sql.append("INSERT INTO `invite_money` (user_id, money_sum, money) VALUES (")
+           .append(userId).append(", ").append(reward2).append(", ").append(reward2)
+           .append(") ON DUPLICATE KEY UPDATE money_sum = money_sum + ")
+           .append(reward2).append(", money = money + ").append(reward2).append(";");
+
         return JdbcDto.builder()
                 .sql(sql.toString())
-                .userId(userId)
+                .userId(inviteeId)
                 .username(username)
                 .build();
     }
 
     private JdbcDto buildJdbcSingle1(MissionDetails details) {
-        log.info("开始处理单集任务: {}", details);
-
         Integer userId = details.getUserId();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在: " + userId));
 
-        Instant executeTime = details.getExecuteTime();
-        Instant orderTime = offsetDateTime(executeTime, -60, -2);
-        Instant registerTime = offsetDateTime(orderTime, -300, -30);
+        LocalDateTime executeTime = details.getExecuteTime();
+        LocalDateTime orderTime = offsetDateTime(executeTime, -60, -2);
+        LocalDateTime registerTime = offsetDateTime(orderTime, -360, -30);
+
+        BigDecimal rate1 = parseBigDecimal(localCommonInfoRepository.findById(420));
+        BigDecimal rate2 = parseBigDecimal(localCommonInfoRepository.findById(421));
 
         Integer inviteeId = details.getInviteeId();
         String username = details.getInviteeName();
-        TbUser updateTbUser = null;
-
+        BigDecimal reward = details.getMoney();
+        
+        List<MissionDetails> missionDetailsList = new ArrayList<>();
+        StringBuilder sql = new StringBuilder();
+        
         if (inviteeId == null) {
             String email = null;
             String phone = null;
-            if (Math.random() > 0.5) {
+            if (Math.random() > 0.55) {
                 email = EmailGenerator.generateEmail(details.getLanguageType());
             } else {
                 phone = PhoneGenerator.generatePhone(details.getLanguageType());
@@ -459,20 +462,44 @@ public class MissionDetailsBuilder {
                 .status(1)
                 .platform("h5.")
                 .inviterCode(user.getInvitationCode())
-                .rate(parseBigDecimalById(localCommonInfoRepository.findById(420)))
-                .twoRate(parseBigDecimalById(localCommonInfoRepository.findById(421)))
+                .rate(rate1)
+                .twoRate(rate2)
                 .qdCode("8888")
                 .build();
+
             TbUser saveTbUser = tbUserRepository.save(tbUser);
             inviteeId = saveTbUser.getUserId();
-            log.info("生成新用户: {}", inviteeId);
-            updateTbUser = TbUser.builder()
-                    .userId(inviteeId)
-                    .invitationCode(InvitationCodeUtil.toSerialCode(inviteeId))
-                    .build();
+
+            TbUser updateTbUser = TbUser.builder()
+                .userId(inviteeId)
+                .invitationCode(InvitationCodeUtil.toSerialCode(inviteeId))
+                .build();
+
+            Mission mission = missionRepository.findById(details.getMissionId())
+                    .orElseThrow(() -> new IllegalArgumentException("任务不存在: " + details.getMissionId()));
+
+            Integer continuous = details.getContinuous();
+            LocalDateTime tempStartTime = executeTime;
+            for (int i = continuous; i >= 1; i--) {
+                tempStartTime = tempStartTime.plusSeconds(ThreadLocalRandom.current().nextInt(120, 240));
+                missionDetailsList.add(MissionDetails.builder()
+                        .userId(userId)
+                        .missionId(mission.getMissionId())
+                        .type(11)
+                        .cost(details.getCost())
+                        .rate(details.getRate())
+                        .money(reward)
+                        .inviteeId(inviteeId)
+                        .inviteeName(username)
+                        .continuous(0)
+                        .executeTime(tempStartTime)
+                        .languageType(details.getLanguageType())
+                        .build());
+            }
+
+            sql.append(JpaSqlBuilder.buildUpdateSql(updateTbUser, List.of("userId")));
         }
 
-        BigDecimal reward = details.getMoney();
         UserMoneyDetails userMoneyDetailsEn = UserMoneyDetails.builder()
                 .userId(userId)
                 .title("[First level invitation commission] First level friend name: " + username)
@@ -495,160 +522,180 @@ public class MissionDetailsBuilder {
                 .createTime(executeTime)
                 .languageType("zh")
                 .build();
+        UserMoneyDetails userMoneyDetailsCht = UserMoneyDetails.builder()
+                .userId(userId)
+                .title("[一級邀請佣金]一級好友名稱：" + username)
+                .classify(2)
+                .type(1)
+                .state(1)
+                .money(reward)
+                .content("新增金額:" + reward)
+                .createTime(executeTime)
+                .languageType("cht")
+                .build();
         Invite invite1 = Invite.builder()
                 .userId(userId)
                 .inviteeUserId(inviteeId)
                 .state(1)
-                .money(BigDecimal.ZERO)
+                .money(reward)
                 .createTime(executeTime)
                 .userType(1)
                 .build();
 
-        Optional<TbUser> inviter = tbUserRepository.findByInvitationCode(user.getInviterCode());
-        UserMoneyDetails userMoneyDetailsEn2 = null;
-        UserMoneyDetails userMoneyDetailsZh2 = null;
-        Invite invite2 = null;
-        BigDecimal reward2 = BigDecimal.ZERO;
-        if (inviter.isPresent()) {
-            TbUser inviterUser = inviter.get();
-            BigDecimal inviter2Rate2 = inviterUser.getTwoRate();
-            if (inviter2Rate2 != null && inviter2Rate2.compareTo(BigDecimal.ZERO) > 0) {
-                // reward2 = details.getCost() * inviterUser.getTwoRate();
-                reward2 = reward.multiply(inviter2Rate2).setScale(2, RoundingMode.HALF_UP);
-                if (reward2.compareTo(BigDecimal.ZERO) > 0) {
-                    userMoneyDetailsEn2 = UserMoneyDetails.builder()
-                        .userId(inviterUser.getUserId())
-                        .title("[Second level invitation commission] Second level friend name: " + username)
-                        .classify(2)
-                        .type(1)
-                        .state(1)
-                        .money(reward2)
-                        .content("Increase amount: " + reward2)
-                        .createTime(executeTime)
-                        .languageType("en")
-                        .build();
-                    userMoneyDetailsZh2 = UserMoneyDetails.builder()
-                        .userId(inviterUser.getUserId())
-                        .title("[二级邀请佣金]二级好友名称：" + username)
-                        .classify(2)
-                        .type(1)
-                        .state(1)
-                        .money(reward2)
-                        .content("增加金额:" + reward2)
-                        .createTime(executeTime)
-                        .languageType("zh")
-                        .build();
-                }
-                
-            }
-            
-            invite2 = Invite.builder()
-                .userId(inviter.get().getUserId())
-                .inviteeUserId(inviteeId)
-                .state(1)
-                .money(reward2)
-                .createTime(executeTime)
-                .userType(2)
-                .build();
-        }
-
-
-        log.info("准备生成SQL");
-        StringBuilder sql = new StringBuilder();
-        if (updateTbUser != null) {
-            sql.append(JpaSqlBuilder.buildUpdateSql(updateTbUser, List.of("userId")));
-        }
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsEn));
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsZh));
+        sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsCht));
         sql.append(JpaSqlBuilder.buildInsertSql(invite1));
-        if (userMoneyDetailsEn2 != null) {
-            sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsEn2));
-            sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsZh2));
+           
+        sql.append("INSERT INTO `invite_money` (user_id, money_sum, money) VALUES (")
+           .append(userId).append(", ").append(reward).append(", ").append(reward)
+           .append(") ON DUPLICATE KEY UPDATE money_sum = money_sum + ")
+           .append(reward).append(", money = money + ").append(reward).append(";");
+
+        TbUser inviter = tbUserRepository.findByInvitationCode(user.getInviterCode())
+                .orElse(null);
+        if (inviter != null) {
+            BigDecimal reward2 = BIGZERO;
+            BigDecimal inviter2Rate2 = inviter.getTwoRate();
+            if (inviter2Rate2 != null && inviter2Rate2.compareTo(BIGZERO) > 0) {
+                reward2 = reward.multiply(inviter2Rate2).setScale(2, RoundingMode.HALF_UP);
+                if (reward2.compareTo(BIGZERO) > 0) {
+                    sql.append(JpaSqlBuilder.buildInsertSql(UserMoneyDetails.builder()
+                            .userId(inviter.getUserId())
+                            .title("[Second level invitation commission] Second level friend name: " + username)
+                            .classify(2)
+                            .type(1)
+                            .state(1)
+                            .money(reward2)
+                            .content("Increase amount: " + reward2)
+                            .createTime(executeTime)
+                            .languageType("en")
+                            .build()));
+                    sql.append(JpaSqlBuilder.buildInsertSql(UserMoneyDetails.builder()
+                            .userId(inviter.getUserId())
+                            .title("[二级邀请佣金]二级好友名称：" + username)
+                            .classify(2)
+                            .type(1)
+                            .state(1)
+                            .money(reward2)
+                            .content("增加金额:" + reward2)
+                            .createTime(executeTime)
+                            .languageType("zh")
+                            .build()));
+                            
+                    sql.append("INSERT INTO `invite_money` (user_id, money_sum, money) VALUES (")
+                       .append(inviter.getUserId()).append(", ").append(reward2).append(", ").append(reward2)
+                       .append(") ON DUPLICATE KEY UPDATE money_sum = money_sum + ")
+                       .append(reward2).append(", money = money + ").append(reward2).append(";");
+                }
+            }
+            
+            sql.append(JpaSqlBuilder.buildInsertSql(Invite.builder()
+                    .userId(inviter.getUserId())
+                    .inviteeUserId(inviteeId)
+                    .state(1)
+                    .money(reward2)
+                    .createTime(executeTime)
+                    .userType(2)
+                    .build()));
         }
-        if (invite2 != null) {
-            sql.append(JpaSqlBuilder.buildInsertSql(invite2));
+
+        if (missionDetailsList.isEmpty()) {
+            return JdbcDto.builder()
+                    .sql(sql.toString())
+                    .userId(inviteeId)
+                    .username(username)
+                    .build();
+        } else {
+            return JdbcDto.builder()
+                    .sql(sql.toString())
+                    .userId(inviteeId)
+                    .username(username)
+                    .missionDetailsList(missionDetailsList)
+                    .build();
         }
-        sql.append("UPDATE `invite_money` SET money_sum = money_sum + ")
-            .append(reward).append(", money = money + ").append(reward)
-            .append(" WHERE user_id=").append(userId).append(";");
-        if (reward2.compareTo(BigDecimal.ZERO) > 0) {
-            sql.append("UPDATE `invite_money` SET money_sum = money_sum + ")
-                .append(reward2).append(", money = money + ").append(reward2)
-                .append(" WHERE user_id=").append(inviter.get().getUserId()).append(";");
-        }
-        return JdbcDto.builder()
-                .sql(sql.toString())
-                .userId(userId)
-                .username(username)
-                .build();
     }
 
     private JdbcDto buildJdbcSingle2(MissionDetails details) {
-        log.info("开始处理单集2任务: {}", details);
-    
         Integer userId = details.getUserId();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在: " + userId));
     
-        Instant executeTime = details.getExecuteTime();
-        Instant orderTime = offsetDateTime(executeTime, -60, -2);
-        Instant registerTime = offsetDateTime(orderTime, -300, -30);
+        TbUser firstLevelInvitee = tbUserRepository.findOneRandom(user.getInvitationCode())
+                .orElseThrow(() -> new IllegalArgumentException("该用户没有满足条件的一级邀请用户"));
+    
+        LocalDateTime executeTime = details.getExecuteTime();
+        LocalDateTime orderTime = offsetDateTime(executeTime, -60, -2);
+        LocalDateTime registerTime = offsetDateTime(orderTime, -360, -30);
+
+        BigDecimal rate1 = parseBigDecimal(localCommonInfoRepository.findById(420));
+        BigDecimal rate2 = parseBigDecimal(localCommonInfoRepository.findById(421));
 
         Integer inviteeId = details.getInviteeId();
         String username = details.getInviteeName();
-        TbUser updateTbUser = null;
-
+        BigDecimal reward2 = details.getMoney();
+        
+        List<MissionDetails> missionDetailsList = new ArrayList<>();
+        StringBuilder sql = new StringBuilder();
+        
         if (inviteeId == null) {
-            // 获取当前用户的所有一级邀请（即 tb_user 表中 inviter_code = user.invitation_code）
-            Optional<TbUser> firstLevelInvitee = tbUserRepository.findOneRandom(user.getInvitationCode());
-        
-            if (firstLevelInvitee.isEmpty()) {
-                throw new IllegalArgumentException("该用户没有满足条件的一级邀请用户");
-            }
-        
-            // 随机选择一个一级邀请的用户
-            TbUser selectedInvitee = firstLevelInvitee.get();
-            String selectedInviteeCode = selectedInvitee.getInvitationCode();
-        
-            // 构造一个新用户（被一级用户邀请 = 二级用户）
             String email = null;
             String phone = null;
-            if (Math.random() > 0.5) {
+            if (Math.random() > 0.55) {
                 email = EmailGenerator.generateEmail(details.getLanguageType());
             } else {
                 phone = PhoneGenerator.generatePhone(details.getLanguageType());
             }
             username = maskUsername(email != null ? email : phone);
-        
-            BigDecimal rate1 = parseBigDecimalById(localCommonInfoRepository.findById(420));
-            BigDecimal rate2 = parseBigDecimalById(localCommonInfoRepository.findById(421));
-        
+
             TbUser tbUser = TbUser.builder()
-                    .userName(username)
-                    .phone(phone)
-                    .emailName(email)
-                    .password(generatePassword())
-                    .createTime(registerTime)
-                    .status(1)
-                    .platform("h5.")
-                    .inviterCode(selectedInviteeCode)  // 绑定一级邀请用户
-                    .rate(rate1)
-                    .twoRate(rate2)
-                    .qdCode("8888")
-                    .build();
-        
+                .userName(username)
+                .phone(phone)
+                .emailName(email)
+                .password(generatePassword())
+                .createTime(registerTime)
+                .status(1)
+                .platform("h5.")
+                .inviterCode(firstLevelInvitee.getInvitationCode())
+                .rate(rate1)
+                .twoRate(rate2)
+                .qdCode("8888")
+                .build();
+
             TbUser saveTbUser = tbUserRepository.save(tbUser);
             inviteeId = saveTbUser.getUserId();
-            log.info("生成新用户: {}", inviteeId);
-        
-            updateTbUser = TbUser.builder()
-                    .userId(inviteeId)
-                    .invitationCode(InvitationCodeUtil.toSerialCode(inviteeId))
-                    .build();
+
+            TbUser updateTbUser = TbUser.builder()
+                .userId(inviteeId)
+                .invitationCode(InvitationCodeUtil.toSerialCode(inviteeId))
+                .build();
+
+            Mission mission = missionRepository.findById(details.getMissionId())
+                    .orElseThrow(() -> new IllegalArgumentException("任务不存在: " + details.getMissionId()));
+
+            Integer continuous = details.getContinuous();
+            LocalDateTime tempStartTime = executeTime;
+            for (int i = continuous; i >= 1; i--) {
+                    tempStartTime = tempStartTime.plusSeconds(ThreadLocalRandom.current().nextInt(120, 240));
+                    missionDetailsList.add(MissionDetails.builder()
+                        .userId(userId)
+                        .missionId(mission.getMissionId())
+                        .type(12)
+                        .cost(details.getCost())
+                        .rate(details.getRate())
+                        .money(reward2)
+                        .inviteeId(inviteeId)
+                        .inviteeName(username)
+                        .continuous(0)
+                        .executeTime(tempStartTime)
+                        .languageType(details.getLanguageType())
+                        .build());
+            }
+
+            sql.append(JpaSqlBuilder.buildUpdateSql(updateTbUser, List.of("userId")));
         }
     
         // 构建二级邀请奖励数据
-        BigDecimal reward2 = details.getMoney();
         UserMoneyDetails userMoneyDetailsEn2 = UserMoneyDetails.builder()
                 .userId(userId)
                 .title("[Second level invitation commission] Second level friend name: " + username)
@@ -671,6 +718,17 @@ public class MissionDetailsBuilder {
                 .createTime(executeTime)
                 .languageType("zh")
                 .build();
+        UserMoneyDetails userMoneyDetailsCht2 = UserMoneyDetails.builder()
+                .userId(userId)
+                .title("[二級邀請佣金]二級好友名稱：" + username)
+                .classify(2)
+                .type(1)
+                .state(1)
+                .money(reward2)
+                .content("新增金額:" + reward2)
+                .createTime(executeTime)
+                .languageType("cht")
+                .build();
     
         Invite invite2 = Invite.builder()
                 .userId(userId)  // 当前用户是二级邀请者
@@ -681,64 +739,69 @@ public class MissionDetailsBuilder {
                 .userType(2)
                 .build();
     
-        // 构建 SQL
-        StringBuilder sql = new StringBuilder();
-        if (updateTbUser != null) {
-            sql.append(JpaSqlBuilder.buildUpdateSql(updateTbUser, List.of("userId")));
-        }
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsEn2));
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsZh2));
+        sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsCht2));
         sql.append(JpaSqlBuilder.buildInsertSql(invite2));
-        sql.append("UPDATE `invite_money` SET money_sum = money_sum + ")
-                .append(reward2).append(", money = money + ").append(reward2)
-                .append(" WHERE user_id=").append(userId).append(";");
-        return JdbcDto.builder()
-                .sql(sql.toString())
-                .userId(userId)
-                .username(username)
-                .build();
+
+        sql.append("INSERT INTO `invite_money` (user_id, money_sum, money) VALUES (")
+           .append(userId).append(", ").append(reward2).append(", ").append(reward2)
+           .append(") ON DUPLICATE KEY UPDATE money_sum = money_sum + ")
+           .append(reward2).append(", money = money + ").append(reward2).append(";");
+
+        if (missionDetailsList.isEmpty()) {
+            return JdbcDto.builder()
+                    .sql(sql.toString())
+                    .userId(inviteeId)
+                    .username(username)
+                    .build();
+        } else {
+            return JdbcDto.builder()
+                    .sql(sql.toString())
+                    .userId(inviteeId)
+                    .username(username)
+                    .missionDetailsList(missionDetailsList)
+                    .build();
+        }
     }
 
     private JdbcDto buildJdbcAll1(MissionDetails details) {
-        log.info("开始处理全集1任务: {}", details);
-
         Integer userId = details.getUserId();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在: " + userId));
 
         String email = null;
         String phone = null;
-        if (Math.random() > 0.5) {
+        if (Math.random() > 0.55) {
             email = EmailGenerator.generateEmail(details.getLanguageType());
         } else {
             phone = PhoneGenerator.generatePhone(details.getLanguageType());
         }
         String username = maskUsername(email != null ? email : phone);
-        Instant executeTime = details.getExecuteTime();
-        Instant orderTime = offsetDateTime(executeTime, -60, -2);
-        Instant registerTime = offsetDateTime(orderTime, -300, -30);
 
-        BigDecimal rate1 = parseBigDecimalById(localCommonInfoRepository.findById(420));
-        BigDecimal rate2 = parseBigDecimalById(localCommonInfoRepository.findById(421));
+        LocalDateTime executeTime = details.getExecuteTime();
+        LocalDateTime orderTime = offsetDateTime(executeTime, -60, -2);
+        LocalDateTime registerTime = offsetDateTime(orderTime, -360, -30);
 
-        Integer inviteeId = details.getInviteeId();
+        BigDecimal rate1 = parseBigDecimal(localCommonInfoRepository.findById(420));
+        BigDecimal rate2 = parseBigDecimal(localCommonInfoRepository.findById(421));
 
         TbUser tbUser = TbUser.builder()
-            .userName(username)
-            .phone(phone)
-            .emailName(email)
-            .password(generatePassword())
-            .createTime(registerTime)
-            .status(1)
-            .platform("h5.")
-            .inviterCode(user.getInvitationCode())
-            .rate(rate1)
-            .twoRate(rate2)
-            .qdCode("8888")
-            .build();
+                .userName(username)
+                .phone(phone)
+                .emailName(email)
+                .password(generatePassword())
+                .createTime(registerTime)
+                .status(1)
+                .platform("h5.")
+                .inviterCode(user.getInvitationCode())
+                .rate(rate1)
+                .twoRate(rate2)
+                .qdCode("8888")
+                .build();
+
         TbUser saveTbUser = tbUserRepository.save(tbUser);
-        inviteeId = saveTbUser.getUserId();
-        log.info("生成新用户: {}", inviteeId);
+        Integer inviteeId = saveTbUser.getUserId();
         TbUser updateTbUser = TbUser.builder()
                 .userId(inviteeId)
                 .invitationCode(InvitationCodeUtil.toSerialCode(inviteeId))
@@ -767,122 +830,117 @@ public class MissionDetailsBuilder {
                 .createTime(executeTime)
                 .languageType("zh")
                 .build();
+        UserMoneyDetails userMoneyDetailsCht = UserMoneyDetails.builder()
+                .userId(userId)
+                .title("[一級邀請佣金]一級好友名稱：" + username)
+                .classify(2)
+                .type(1)
+                .state(1)
+                .money(reward)
+                .content("新增金額:" + reward)
+                .createTime(executeTime)
+                .languageType("cht")
+                .build();
         Invite invite1 = Invite.builder()
                 .userId(userId)
                 .inviteeUserId(inviteeId)
                 .state(1)
-                .money(BigDecimal.ZERO)
+                .money(reward)
                 .createTime(executeTime)
                 .userType(1)
                 .build();
-        Optional<TbUser> inviter = tbUserRepository.findByInvitationCode(user.getInviterCode());
-        UserMoneyDetails userMoneyDetailsEn2 = null;
-        UserMoneyDetails userMoneyDetailsZh2 = null;
-        Invite invite2 = null;
-        BigDecimal reward2 = BigDecimal.ZERO;
-        if (inviter.isPresent()) {
-            TbUser inviterUser = inviter.get();
-            BigDecimal inviter2Rate2 = inviterUser.getTwoRate();
-            if (inviter2Rate2 != null && inviter2Rate2.compareTo(BigDecimal.ZERO) > 0) {
-                reward2 = reward.multiply(inviter2Rate2).setScale(2, RoundingMode.HALF_UP);
-                if (reward2.compareTo(BigDecimal.ZERO) > 0) {
-                    userMoneyDetailsEn2 = UserMoneyDetails.builder()
-                        .userId(inviterUser.getUserId())
-                        .title("[Second level invitation commission] Second level friend name: " + username)
-                        .classify(2)
-                        .type(1)
-                        .state(1)
-                        .money(reward2)
-                        .content("Increase amount: " + reward2)
-                        .createTime(executeTime)
-                        .languageType("en")
-                        .build();
-                    userMoneyDetailsZh2 = UserMoneyDetails.builder()
-                        .userId(inviterUser.getUserId())
-                        .title("[二级邀请佣金]二级好友名称：" + username)
-                        .classify(2)
-                        .type(1)
-                        .state(1)
-                        .money(reward2)
-                        .content("增加金额:" + reward2)
-                        .createTime(executeTime)
-                        .languageType("zh")
-                        .build();
-                }
-                
-            }
-            
-            invite2 = Invite.builder()
-                .userId(inviter.get().getUserId())
-                .inviteeUserId(inviteeId)
-                .state(1)
-                .money(reward2)
-                .createTime(executeTime)
-                .userType(2)
-                .build();
-        }
-        log.info("准备生成SQL");
+
         StringBuilder sql = new StringBuilder();
         sql.append(JpaSqlBuilder.buildUpdateSql(updateTbUser, List.of("userId")));
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsEn));
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsZh));
+        sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsCht));
         sql.append(JpaSqlBuilder.buildInsertSql(invite1));
-        if (userMoneyDetailsEn2 != null) {
-            sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsEn2));
-            sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsZh2));
+           
+        sql.append("INSERT INTO `invite_money` (user_id, money_sum, money) VALUES (")
+           .append(userId).append(", ").append(reward).append(", ").append(reward)
+           .append(") ON DUPLICATE KEY UPDATE money_sum = money_sum + ")
+           .append(reward).append(", money = money + ").append(reward).append(";");
+        
+
+        TbUser inviter = tbUserRepository.findByInvitationCode(user.getInviterCode())
+                .orElse(null);
+        if (inviter != null) {
+            BigDecimal reward2 = BIGZERO;
+            BigDecimal inviter2Rate2 = inviter.getTwoRate();
+            if (inviter2Rate2 != null && inviter2Rate2.compareTo(BIGZERO) > 0) {
+                reward2 = reward.multiply(inviter2Rate2).setScale(2, RoundingMode.HALF_UP);
+                if (reward2.compareTo(BIGZERO) > 0) {
+                    sql.append(JpaSqlBuilder.buildInsertSql(UserMoneyDetails.builder()
+                            .userId(inviter.getUserId())
+                            .title("[Second level invitation commission] Second level friend name: " + username)
+                            .classify(2)
+                            .type(1)
+                            .state(1)
+                            .money(reward2)
+                            .content("Increase amount: " + reward2)
+                            .createTime(executeTime)
+                            .languageType("en")
+                            .build()));
+                    sql.append(JpaSqlBuilder.buildInsertSql(UserMoneyDetails.builder()
+                            .userId(inviter.getUserId())
+                            .title("[二级邀请佣金]二级好友名称：" + username)
+                            .classify(2)
+                            .type(1)
+                            .state(1)
+                            .money(reward2)
+                            .content("增加金额:" + reward2)
+                            .createTime(executeTime)
+                            .languageType("zh")
+                            .build()));
+                            
+                    sql.append("INSERT INTO `invite_money` (user_id, money_sum, money) VALUES (")
+                       .append(inviter.getUserId()).append(", ").append(reward2).append(", ").append(reward2)
+                       .append(") ON DUPLICATE KEY UPDATE money_sum = money_sum + ")
+                       .append(reward2).append(", money = money + ").append(reward2).append(";");
+                }
+            }
+            
+            sql.append(JpaSqlBuilder.buildInsertSql(Invite.builder()
+                    .userId(inviter.getUserId())
+                    .inviteeUserId(inviteeId)
+                    .state(1)
+                    .money(reward2)
+                    .createTime(executeTime)
+                    .userType(2)
+                    .build()));
         }
-        if (invite2 != null) {
-            sql.append(JpaSqlBuilder.buildInsertSql(invite2));
-        }
-        sql.append("UPDATE `invite_money` SET money_sum = money_sum + ")
-            .append(reward).append(", money = money + ").append(reward)
-            .append(" WHERE user_id=").append(userId).append(";");
-        if (reward2.compareTo(BigDecimal.ZERO) > 0) {
-            sql.append("UPDATE `invite_money` SET money_sum = money_sum + ")
-                .append(reward2).append(", money = money + ").append(reward2)
-                .append(" WHERE user_id=").append(inviter.get().getUserId()).append(";");
-        }
+
         return JdbcDto.builder()
                 .sql(sql.toString())
-                .userId(userId)
+                .userId(inviteeId)
                 .username(username)
                 .build();
     }
 
     private JdbcDto buildJdbcAll2(MissionDetails details) {
-        log.info("开始处理全集2任务: {}", details);
-    
         Integer userId = details.getUserId();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在: " + userId));
     
-        // 获取当前用户的所有一级邀请（即 tb_user 表中 inviter_code = user.invitation_code）
-        Optional<TbUser> firstLevelInvitee = tbUserRepository.findOneRandom(user.getInvitationCode());
+        TbUser firstLevelInvitee = tbUserRepository.findOneRandom(user.getInvitationCode())
+                .orElseThrow(() -> new IllegalArgumentException("该用户没有满足条件的一级邀请用户"));
     
-        if (firstLevelInvitee.isEmpty()) {
-            throw new IllegalArgumentException("该用户没有满足条件的一级邀请用户");
-        }
-    
-        // 随机选择一个一级邀请的用户
-        TbUser selectedInvitee = firstLevelInvitee.get();
-        String selectedInviteeCode = selectedInvitee.getInvitationCode();
-    
-        // 构造一个新用户（被一级用户邀请 = 二级用户）
         String email = null;
         String phone = null;
-        if (Math.random() > 0.5) {
+        if (Math.random() > 0.55) {
             email = EmailGenerator.generateEmail(details.getLanguageType());
         } else {
             phone = PhoneGenerator.generatePhone(details.getLanguageType());
         }
         String username = maskUsername(email != null ? email : phone);
     
-        Instant executeTime = details.getExecuteTime();
-        Instant orderTime = offsetDateTime(executeTime, -60, -2);
-        Instant registerTime = offsetDateTime(orderTime, -300, -30);
+        LocalDateTime executeTime = details.getExecuteTime();
+        LocalDateTime orderTime = offsetDateTime(executeTime, -60, -2);
+        LocalDateTime registerTime = offsetDateTime(orderTime, -300, -30);
     
-        BigDecimal rate1 = parseBigDecimalById(localCommonInfoRepository.findById(420));
-        BigDecimal rate2 = parseBigDecimalById(localCommonInfoRepository.findById(421));
+        BigDecimal rate1 = parseBigDecimal(localCommonInfoRepository.findById(420));
+        BigDecimal rate2 = parseBigDecimal(localCommonInfoRepository.findById(421));
     
         TbUser tbUser = TbUser.builder()
                 .userName(username)
@@ -892,7 +950,7 @@ public class MissionDetailsBuilder {
                 .createTime(registerTime)
                 .status(1)
                 .platform("h5.")
-                .inviterCode(selectedInviteeCode)  // 绑定一级邀请用户
+                .inviterCode(firstLevelInvitee.getInvitationCode())
                 .rate(rate1)
                 .twoRate(rate2)
                 .qdCode("8888")
@@ -900,7 +958,6 @@ public class MissionDetailsBuilder {
     
         TbUser saveTbUser = tbUserRepository.save(tbUser);
         Integer inviteeId = saveTbUser.getUserId();
-        log.info("生成新用户: {}", inviteeId);
     
         TbUser updateTbUser = TbUser.builder()
                 .userId(inviteeId)
@@ -931,6 +988,17 @@ public class MissionDetailsBuilder {
                 .createTime(executeTime)
                 .languageType("zh")
                 .build();
+        UserMoneyDetails userMoneyDetailsCht2 = UserMoneyDetails.builder()
+                .userId(userId)
+                .title("[二級邀請佣金]二級好友名稱：" + username)
+                .classify(2)
+                .type(1)
+                .state(1)
+                .money(reward2)
+                .content("新增金額:" + reward2)
+                .createTime(executeTime)
+                .languageType("cht")
+                .build();
     
         Invite invite2 = Invite.builder()
                 .userId(userId)  // 当前用户是二级邀请者
@@ -946,13 +1014,17 @@ public class MissionDetailsBuilder {
         sql.append(JpaSqlBuilder.buildUpdateSql(updateTbUser, List.of("userId")));
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsEn2));
         sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsZh2));
+        sql.append(JpaSqlBuilder.buildInsertSql(userMoneyDetailsCht2));
         sql.append(JpaSqlBuilder.buildInsertSql(invite2));
-        sql.append("UPDATE `invite_money` SET money_sum = money_sum + ")
-                .append(reward2).append(", money = money + ").append(reward2)
-                .append(" WHERE user_id=").append(userId).append(";");
+
+        sql.append("INSERT INTO `invite_money` (user_id, money_sum, money) VALUES (")
+           .append(userId).append(", ").append(reward2).append(", ").append(reward2)
+           .append(") ON DUPLICATE KEY UPDATE money_sum = money_sum + ")
+           .append(reward2).append(", money = money + ").append(reward2).append(";");
+
         return JdbcDto.builder()
                 .sql(sql.toString())
-                .userId(userId)
+                .userId(inviteeId)
                 .username(username)
                 .build();
     }
@@ -971,7 +1043,7 @@ public class MissionDetailsBuilder {
         return DigestUtils.md5DigestAsHex(password.getBytes());
     }
 
-    private Instant offsetDateTime(Instant dateTime, int minSeconds, int maxSeconds) {
+    private LocalDateTime offsetDateTime(LocalDateTime dateTime, int minSeconds, int maxSeconds) {
         int offsetSeconds = ThreadLocalRandom.current().nextInt(minSeconds, maxSeconds);
         return dateTime.plusSeconds(offsetSeconds);
     }

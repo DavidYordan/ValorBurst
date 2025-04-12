@@ -151,6 +151,36 @@ public interface TbUserRepository extends JpaRepository<TbUser, Integer> {
         """, nativeQuery = true)
     Optional<UserRemoteProjection> findProjectedByEmail(@Param("email") String email);
 
+    // 通过invitationCode查询用户
+    @Query(value = """
+        SELECT 
+            u.user_id AS userId,
+            u.user_name AS userName,
+            u.phone AS phone,
+            u.email_name AS emailName,
+            u.platform AS platform,
+            u.invitation_code AS invitationCode,
+            u.inviter_code AS inviterCode,
+            u.rate AS rate,
+            u.two_rate AS twoRate,
+            im.money_sum AS moneySum,
+            im.money AS money,
+            IFNULL((
+                SELECT SUM(CAST(c.money AS DECIMAL)) FROM cash_out c 
+                WHERE c.user_id = u.user_id AND c.state = 1
+            ), 0) AS cashOut,
+            IFNULL((
+                SELECT SUM(CAST(c.money AS DECIMAL)) FROM cash_out c 
+                WHERE c.user_id = u.user_id AND c.state = 0
+            ), 0) AS cashOutStay,
+            um.money AS moneyWallet
+        FROM tb_user u
+        LEFT JOIN invite_money im ON u.user_id = im.user_id
+        LEFT JOIN user_money um ON u.user_id = um.user_id
+        WHERE u.invitation_code = :invitationCode
+        """, nativeQuery = true)
+    Optional<UserRemoteProjection> findProjectedByInvitationCode(@Param("invitationCode") String invitationCode);
+
     // 查询二级邀请人
     @Query(value = """
         SELECT

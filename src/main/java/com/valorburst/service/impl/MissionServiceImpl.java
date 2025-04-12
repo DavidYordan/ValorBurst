@@ -1,7 +1,9 @@
 package com.valorburst.service.impl;
 
 import com.valorburst.config.AppProperties;
+import com.valorburst.dto.AddMissionRequestDto;
 import com.valorburst.dto.JdbcDto;
+import com.valorburst.dto.MissionResponseDto;
 import com.valorburst.model.local.Mission;
 import com.valorburst.model.local.MissionArchive;
 import com.valorburst.model.local.MissionDetails;
@@ -27,19 +29,23 @@ import com.valorburst.util.TelegramMessageBuilder;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.apache.commons.math3.distribution.BetaDistribution;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
-import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -64,6 +70,49 @@ public class MissionServiceImpl implements MissionService {
     private final TelegramBotService telegramBotService;
 
     Set<Integer> executingSet = new HashSet<>();
+    Set<Integer> checkMissionSet = new HashSet<>();
+    private static final BigDecimal BIGZERO = BigDecimal.ZERO;
+
+    public void addMissions(AddMissionRequestDto missionDto) {
+        Integer userId = missionDto.getUserId();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在, userId=" + userId));
+        String team = missionDto.getTeam();
+        String region = missionDto.getRegion();
+        if (team != null && !team.isEmpty()) {
+            user.setTeam(team);
+        }
+        user.setRegion(region);
+        userRepository.save(user);
+
+        String languageType = missionDto.getLanguageType();
+        LocalDateTime startTime = missionDto.getStartTime();
+        LocalDateTime endTime = missionDto.getEndTime();
+
+        List<AddMissionRequestDto.TypeDto> typeDtos = missionDto.getTypeDtos();
+
+        List<Mission> missions = typeDtos.stream()
+                .map((AddMissionRequestDto.TypeDto typeDto) -> {
+                    Integer type = typeDto.getType();
+                    BigDecimal expectMoney = typeDto.getExpectMoney();
+                    BigDecimal overflow = typeDto.getOverflow();
+                    BigDecimal decreasing = typeDto.getDecreasing();
+
+                    return Mission.builder()
+                            .userId(userId)
+                            .expectMoney(expectMoney)
+                            .overflow(overflow)
+                            .decreasing(decreasing)
+                            .startTime(startTime)
+                            .endTime(endTime)
+                            .type(type)
+                            .languageType(languageType)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        missionRepository.saveAll(missions);
+    }
 
     /**
      * 检查超时任务
@@ -72,7 +121,7 @@ public class MissionServiceImpl implements MissionService {
         dedupingExecutor.execute(() -> {
             String timeoutStr = settingRepository.findValueByKey("execution_timeout");
             // 超时时间为当前时间减去设置的超时时间
-            Instant timeout = Instant.now().minusSeconds(Long.parseLong(timeoutStr));
+            LocalDateTime timeout = LocalDateTime.now().minusSeconds(Long.parseLong(timeoutStr));
             List<MissionDetails> timeoutDetails = missionDetailsRepository.findAllTimeoutExecute(timeout);
             if (timeoutDetails.isEmpty()) {
                 log.info("没有超时任务");
@@ -84,24 +133,75 @@ public class MissionServiceImpl implements MissionService {
     }
 
     /**
-     * 初始化任务
+     * 检查主任务
      */
-    public void generateInitMissions() {
-        List<Mission> missions = missionRepository.findAllNeedInit();
+    public void checkMissions() {
+        List<Mission> missions = missionRepository.findMissions();
         for (Mission mission : missions) {
-            Integer type = mission.getType();
-            if (type == 0) {
-                buildEmptyMissionDetails(mission);
-            } else if (type >= 1 && type <= 8) {
-                dedupingExecutor.execute(() -> buildVipMissionDetails(mission), "build-vip-mission-" + mission.getMissionId());
-            } else if (type == 11 || type == 12) {
-                dedupingExecutor.execute(() -> buildSingleMissionDetails(mission), "build-single-mission-" + mission.getMissionId());
-            } else if (type == 21 || type == 22) {
-                dedupingExecutor.execute(() -> buildAllMissionDetails(mission), "build-all-mission-" + mission.getMissionId());
-            } else {
-                log.info("跳过非vip任务，missionId={}，任务类型={}", mission.getMissionId(), type);
+            checkMission(mission);
+        }
+    }
+
+    private void checkMission(Mission mission) {
+        Integer missionId = mission.getMissionId();
+        synchronized (checkMissionSet) {
+            if (!checkMissionSet.add(missionId)) {
+                log.info("任务 {} 正在检查中，跳过本次检查", missionId);
+                return;
             }
         }
+
+        BigDecimal expectMoney = mission.getExpectMoney();
+        BigDecimal money = mission.getMoney();
+        if (money != null && money.compareTo(expectMoney) >= 0) {
+            dedupingExecutor.execute(() -> {
+                try {
+                    archiveMission(mission);
+                } catch (Exception e) {
+                    log.error("归档任务异常: {}", missionId, e);
+                } finally {
+                    synchronized (checkMissionSet) {
+                        checkMissionSet.remove(missionId);
+                    }
+                }
+            });
+            return;
+        }
+
+        try {
+            Integer type = mission.getType();
+            Integer count = 0;
+            if (type == 11 || type == 12) {
+                count = missionDetailsRepository.countSignalByMissionId(missionId);
+            } else {
+                count = missionDetailsRepository.countByMissionId(missionId);
+            }
+
+            if (count > 0) {
+                synchronized (checkMissionSet) {
+                    checkMissionSet.remove(missionId);
+                }
+                return;
+            }
+        } catch (Exception e) {
+            log.error("查询任务详情异常: {}", missionId, e);
+            synchronized (checkMissionSet) {
+                checkMissionSet.remove(missionId);
+            }
+            return;
+        }
+
+        dedupingExecutor.execute(() -> {
+            try {
+                generateNextMissions(mission);
+            } catch (Exception e) {
+                log.error("生成下一任务异常: {}", missionId, e);
+            } finally {
+                synchronized (checkMissionSet) {
+                    checkMissionSet.remove(missionId);
+                }
+            }
+        });
     }
 
     /**
@@ -114,31 +214,61 @@ public class MissionServiceImpl implements MissionService {
 
             synchronized (executingSet) {
                 if (!executingSet.add(missionDetailsId)) {
-                    log.debug("跳过重复任务: {}", missionDetailsId);
                     continue;
                 }
             }
 
             dedupingExecutor.execute(() -> {
                 try {
-                    // 额外双重校验（数据库中executing字段为false）
-                    Integer locked = missionDetailsRepository.tryMarkExecuting(missionDetailsId);
-                    if (locked == 0) {
-                        log.warn("数据库执行状态冲突，跳过执行: {}", missionDetailsId);
-                        return;
-                    }
-
                     doExecuteMissionDetails(details);
                 } catch (Exception e) {
                     log.error("任务执行异常: {}", missionDetailsId, e);
                 } finally {
-                    // 执行结束后移除记录
                     synchronized (executingSet) {
                         executingSet.remove(missionDetailsId);
                     }
                 }
             });
         }
+    }
+
+    @Override
+    public List<MissionResponseDto> getAllMissionDtos(Integer userId) {
+        List<Mission> missions = missionRepository.findAllByUserId(userId);
+        List<MissionArchive> archives = missionArchiveRepository.findAllByUserId(userId);
+        List<MissionResponseDto> missionDtos = missions.stream()
+                .map(mission -> MissionResponseDto.builder()
+                        .missionId(mission.getMissionId())
+                        .userId(mission.getUserId())
+                        .expectMoney(mission.getExpectMoney())
+                        .overflow(mission.getOverflow())
+                        .decreasing(mission.getDecreasing())
+                        .startTime(mission.getStartTime())
+                        .endTime(mission.getEndTime())
+                        .status(mission.getStatus())
+                        .money(mission.getMoney())
+                        .todayMoney(mission.getTodayMoney())
+                        .type(mission.getType())
+                        .executeTime(mission.getExecuteTime())
+                        .languageType(mission.getLanguageType())
+                        .build())
+                .collect(Collectors.toCollection(ArrayList::new));
+        missionDtos.addAll(archives.stream()
+            .map(archive -> MissionResponseDto.builder()
+                    .missionId(archive.getMissionId())
+                    .userId(archive.getUserId())
+                    .expectMoney(archive.getExpectMoney())
+                    .overflow(archive.getOverflow())
+                    .decreasing(archive.getDecreasing())
+                    .startTime(archive.getStartTime())
+                    .endTime(archive.getEndTime())
+                    .money(archive.getMoney())
+                    .type(archive.getType())
+                    .archiveTime(archive.getArchiveTime())
+                    .languageType(archive.getLanguageType())
+                    .build())
+            .toList());
+        return missionDtos;
     }
 
     /**
@@ -149,34 +279,22 @@ public class MissionServiceImpl implements MissionService {
         log.info("开始构建missionDetails, missionId = {}, type = 0", missionId);
 
         BigDecimal expectMoney = mission.getExpectMoney();
-        Integer count = missionDetailsArchiveRepository.countMoneyZeroByMissionId(missionId);
-        // if (count >= expectMoney) {
+        Integer count = missionDetailsArchiveRepository.countTypeZeroByMissionId(missionId);
+
         if (count >= expectMoney.intValue()) {
             archiveMission(mission);
             return;
         }
 
-        Integer remainingExecutions = (int) Math.ceil((expectMoney.subtract(BigDecimal.valueOf(count))).doubleValue());
-        Instant exeCuteTime = mission.getExecuteTime();
-        Instant nextExecuteTime;
-        Instant endTime = mission.getEndTime();
-        if (exeCuteTime == null) {
-            exeCuteTime = mission.getStartTime();
-        }
-        if (exeCuteTime.isAfter(endTime)) {
-            nextExecuteTime = Instant.now();
-        } else {
-            nextExecuteTime = getNextExecuteTime(exeCuteTime, endTime, remainingExecutions);
-        }
+        LocalDateTime nextExecuteTime = getNextExecuteTime(mission, BigDecimal.valueOf(count));
 
-        BigDecimal bigZero = BigDecimal.ZERO;
         MissionDetails details = MissionDetails.builder()
                 .missionId(missionId)
                 .userId(mission.getUserId())
                 .type(mission.getType())
-                .cost(bigZero)
-                .rate(bigZero)
-                .money(bigZero)
+                .cost(BIGZERO)
+                .rate(BIGZERO)
+                .money(BIGZERO)
                 .executeTime(nextExecuteTime)
                 .languageType(mission.getLanguageType())
                 .build();
@@ -190,11 +308,10 @@ public class MissionServiceImpl implements MissionService {
      * 构建VIP任务详情
      */
     private void buildVipMissionDetails(Mission mission) {
+        Integer missionId = mission.getMissionId();
         Integer vipType;
         Integer inviterLevel;
         Integer type = mission.getType();
-        // String languageType = mission.getLanguageType();
-        String languageType = "en";
         switch (type) {
             case 1 -> { vipType = 3; inviterLevel = 1; }
             case 2 -> { vipType = 0; inviterLevel = 1; }
@@ -210,11 +327,11 @@ public class MissionServiceImpl implements MissionService {
             }
         }
 
-        log.info("开始构建missionDetails, missionId = {}, type = {}, languageType = {}", mission.getMissionId(), type, languageType);
-        BigDecimal vipMoney = Optional.ofNullable(localVipDetailsRepository.findMoney(vipType, languageType))
-                .orElse(null);
-        if (vipMoney == null) {
-            log.error("未配置vip价格, missionId = {}, type = {}, languageType = {}", mission.getMissionId(), type, languageType);
+        log.info("开始构建missionDetails, missionId = {}, type = {}", missionId, type);
+        BigDecimal vipMoney = localVipDetailsRepository.findMoney(vipType, "en");
+        // BigDecimal vipMoney = localVipDetailsRepository.findMoney(vipType, languageType);
+        if (vipMoney == null || vipMoney.compareTo(BIGZERO) <= 0) {
+            log.error("未找到有效的VIP金额, missionId = {}, type = {}", missionId, type);
             return;
         }
 
@@ -226,41 +343,28 @@ public class MissionServiceImpl implements MissionService {
         }
 
         BigDecimal userRate = inviterLevel == 1 ? user.getRate() : user.getTwoRate();
-        if (userRate == null || userRate.compareTo(BigDecimal.ZERO) <= 0) {
-            log.error("missionId {} 用户费率不正确", mission.getMissionId());
+        if (userRate == null || userRate.compareTo(BIGZERO) <= 0) {
+            log.error("missionId {} 用户费率不正确", missionId);
             return;
         }
 
-        // vipMoney * userRate = 每次执行的金额
         BigDecimal perExecutionMoney = vipMoney.multiply(userRate).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal money = mission.getMoney() == null ? BigDecimal.ZERO : mission.getMoney();
+        BigDecimal money = Optional.ofNullable(mission.getMoney())
+                .orElse(BIGZERO);
         BigDecimal expectMoney = mission.getExpectMoney();
         BigDecimal needMoney = expectMoney.subtract(money);
         BigDecimal overflowFactor = BigDecimal.ONE.add(mission.getOverflow().divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
         BigDecimal overflowLimit = expectMoney.multiply(overflowFactor);
         
-        if (needMoney.compareTo(BigDecimal.ZERO) <= 0 || money.add(perExecutionMoney).compareTo(overflowLimit) > 0) {
+        if (needMoney.compareTo(BIGZERO) <= 0 || money.add(perExecutionMoney).compareTo(overflowLimit) > 0) {
             archiveMission(mission);
             return;
         }
 
-        // Integer remainingExecutions = (int) Math.ceil(needMoney / perExecutionMoney);
-        Integer remainingExecutions = (int) Math.ceil(needMoney.divide(perExecutionMoney, 2, RoundingMode.HALF_UP).doubleValue());
-
-        Instant exeCuteTime = mission.getExecuteTime();
-        Instant nextExecuteTime;
-        Instant endTime = mission.getEndTime();
-        if (exeCuteTime == null) {
-            exeCuteTime = mission.getStartTime();
-        }
-        if (exeCuteTime.isAfter(endTime)) {
-            nextExecuteTime = Instant.now();
-        } else {
-            nextExecuteTime = getNextExecuteTime(exeCuteTime, endTime, remainingExecutions);
-        }
+        LocalDateTime nextExecuteTime = getNextExecuteTime(mission, perExecutionMoney);
 
         MissionDetails details = MissionDetails.builder()
-                .missionId(mission.getMissionId())
+                .missionId(missionId)
                 .userId(mission.getUserId())
                 .type(mission.getType())
                 .cost(vipMoney)
@@ -271,7 +375,7 @@ public class MissionServiceImpl implements MissionService {
                 .build();
         missionDetailsRepository.save(details);
 
-        mission.setExecuteTime(details.getExecuteTime());
+        mission.setExecuteTime(nextExecuteTime);
         missionRepository.save(mission);
     }
 
@@ -283,21 +387,70 @@ public class MissionServiceImpl implements MissionService {
         if (type == 0) {
             buildEmptyMissionDetails(mission);
         } else if (type >= 1 && type <= 8) {
-            dedupingExecutor.execute(() -> buildVipMissionDetails(mission), "build-vip-mission-" + mission.getMissionId());
+            buildVipMissionDetails(mission);
         } else if (type == 11 || type == 12) {
-            dedupingExecutor.execute(() -> buildSingleMissionDetails(mission), "build-single-mission-" + mission.getMissionId());
+            buildSingleMissionDetails(mission);
         } else if (type == 21 || type == 22) {
-            dedupingExecutor.execute(() -> buildAllMissionDetails(mission), "build-all-mission-" + mission.getMissionId());
+            buildAllMissionDetails(mission);
         } else {
             log.error("未知的任务类型: {}", type);
         }
     }
 
-    private Instant getNextExecuteTime(Instant startTime, Instant endTime, Integer remainingExecutions) {
-        Long durationSec = Duration.between(startTime, endTime).getSeconds();
-        Double u = Math.random();
-        Double min = 1 - Math.pow(1 - u, 1.0 / remainingExecutions);
-        return startTime.plusSeconds((long) (min * durationSec));
+    public LocalDateTime getNextExecuteTime(Mission mission, BigDecimal thisExecutionAmount) {
+
+        Integer missionId = mission.getMissionId();
+        LocalDateTime startTime = mission.getStartTime();
+        LocalDateTime lastExecutionTime = Optional.ofNullable(mission.getExecuteTime())
+                .or(() -> Optional.ofNullable(missionDetailsArchiveRepository.findMaxExecuteTimeByMissionId(missionId)))
+                .orElse(mission.getStartTime());
+        LocalDateTime endTime = mission.getEndTime();
+        BigDecimal completedAmount = mission.getMoney() == null ? BIGZERO : mission.getMoney();
+        BigDecimal totalAmount = mission.getExpectMoney();
+        BigDecimal decreasing = mission.getDecreasing();
+
+        if (totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("金额必须有效且 totalAmount > 0");
+        }
+
+        if (decreasing == null || decreasing.compareTo(BigDecimal.ZERO) <= 0 || decreasing.compareTo(BigDecimal.ONE) >= 0) {
+            decreasing = BigDecimal.valueOf(0.6); // 默认前50%时间完成60%
+        }
+
+        // 计算两次执行后的进度
+        BigDecimal futureCompleted = completedAmount.add(thisExecutionAmount.multiply(BigDecimal.valueOf(2)));
+        BigDecimal progress = futureCompleted.divide(totalAmount, 10, RoundingMode.HALF_UP)
+                .min(BigDecimal.ONE).max(BigDecimal.ZERO);
+
+        // Beta 分布参数
+        double alpha = decreasing.doubleValue() * 2;
+        double beta = (1.0 - decreasing.doubleValue()) * 2;
+        BetaDistribution betaDistribution = new BetaDistribution(beta, alpha);
+
+        // 基于未来进度计算的时间占比
+        double timeRatio = betaDistribution.inverseCumulativeProbability(progress.doubleValue());
+
+        long totalSeconds = Duration.between(startTime, endTime).getSeconds();
+        long baseSeconds = (long) (timeRatio * totalSeconds);
+        LocalDateTime futureTargetTime = startTime.plusSeconds(baseSeconds);
+
+        // 在 [lastExecutionTime, futureTargetTime] 之间取随机时间
+        long secondsRange = Duration.between(lastExecutionTime, futureTargetTime).getSeconds();
+
+        if (secondsRange < 0) {
+            // 如果时间倒退或相同，随机加 1～10 秒补偿
+            return lastExecutionTime.plusSeconds(ThreadLocalRandom.current().nextInt(0, 11));
+        }
+
+        long randomOffset = ThreadLocalRandom.current().nextLong(0, secondsRange + 1); // 包含边界
+        LocalDateTime nextExecuteTime = lastExecutionTime.plusSeconds(randomOffset);
+
+        // 边界检查
+        if (nextExecuteTime.isAfter(endTime)) {
+            return endTime;
+        }
+
+        return nextExecuteTime;
     }
 
     /**
@@ -317,12 +470,9 @@ public class MissionServiceImpl implements MissionService {
         }
         jdbcHelper.executeInTransaction(sql);
 
-        details.setInviteeId(jdbcDto.getUserId());
-        details.setInviteeName(jdbcDto.getUsername());
-
         // 本地数据库操作（采用本地事务处理）
         try {
-            updateLocalData(details);
+            updateLocalData(details, jdbcDto);
         } catch (Exception e) {
             log.error("本地数据库更新失败, missionDetailsId={}, scheduling compensation", details.getMissionDetailsId(), e);
             recordCompensation(details);
@@ -336,17 +486,27 @@ public class MissionServiceImpl implements MissionService {
      * 本地数据更新：在一个事务中更新mission金额、归档mission_details、生成下一任务
      */
     @Transactional
-    public void updateLocalData(MissionDetails details) {
-        Mission mission = missionRepository.findById(details.getMissionId())
-                .orElseThrow(() -> new RuntimeException("任务不存在, missionId=" + details.getMissionId()));
-        BigDecimal totalMoney = missionDetailsArchiveRepository.sumMoneyByMissionId(mission.getMissionId());
-        BigDecimal todayMoney = missionDetailsArchiveRepository.sumMoneyByMissionIdAndToday(mission.getMissionId());
-        mission.setMoney(totalMoney == null ? BigDecimal.ZERO : totalMoney);
-        mission.setTodayMoney(todayMoney == null ? BigDecimal.ZERO : todayMoney);
-        missionRepository.save(mission);
+    public void updateLocalData(MissionDetails details, JdbcDto jdbcDto) {
+        details.setInviteeId(jdbcDto.getUserId());
+        details.setInviteeName(jdbcDto.getUsername());
+
+        List<MissionDetails> detailsList = jdbcDto.getMissionDetailsList();
+        if (detailsList != null) {
+            missionDetailsRepository.saveAll(detailsList);
+        }
 
         archiveMissionDetails(details);
-        generateNextMissions(mission);
+
+        Integer missionId = details.getMissionId();
+        Mission mission = missionRepository.findById(missionId)
+                .orElseThrow(() -> new RuntimeException("任务不存在, missionId=" + missionId));
+        BigDecimal totalMoney = missionDetailsArchiveRepository.sumMoneyByMissionId(missionId);
+        BigDecimal todayMoney = missionDetailsArchiveRepository.sumMoneyByMissionIdAndToday(missionId);
+        mission.setMoney(totalMoney == null ? BIGZERO : totalMoney);
+        mission.setTodayMoney(todayMoney == null ? BIGZERO : todayMoney);
+        missionRepository.save(mission);
+
+        checkMission(mission);
     }
 
     /**
@@ -375,62 +535,56 @@ public class MissionServiceImpl implements MissionService {
     }
 
     private void archiveMission(Mission mission) {
+        Integer missionId = mission.getMissionId();
         missionArchiveRepository.save(MissionArchive.builder()
-                .missionId(mission.getMissionId())
+                .missionId(missionId)
                 .userId(mission.getUserId())
                 .expectMoney(mission.getExpectMoney())
+                .overflow(mission.getOverflow())
+                .decreasing(mission.getDecreasing())
                 .startTime(mission.getStartTime())
                 .endTime(mission.getEndTime())
                 .money(mission.getMoney())
                 .type(mission.getType())
-                .archiveTime(Instant.now())
+                .archiveTime(LocalDateTime.now())
                 .languageType(mission.getLanguageType())
                 .build());
-        missionRepository.deleteById(mission.getMissionId());
-        log.info("Mission {} 归档完毕", mission.getMissionId());
+        missionRepository.deleteById(missionId);
+        log.info("Mission {} 归档完毕", missionId);
     }
 
     private void archiveMissionDetails(MissionDetails details) {
-        Integer type = details.getType();
-        Integer continous = details.getContinuous();
-        BigDecimal cost = details.getCost();
-        BigDecimal money = details.getMoney();
-        if (type == 11 || type == 12) {
-            cost = cost.multiply(BigDecimal.valueOf(continous)).setScale(2, RoundingMode.HALF_UP);
-            money = money.multiply(BigDecimal.valueOf(continous)).setScale(2, RoundingMode.HALF_UP);
-        }
+        Integer missionDetailsId = details.getMissionDetailsId();
         missionDetailsArchiveRepository.save(MissionDetailsArchive.builder()
-                .missionDetailsId(details.getMissionDetailsId())
+                .missionDetailsId(missionDetailsId)
                 .missionId(details.getMissionId())
                 .userId(details.getUserId())
-                .type(type)
-                .cost(cost)
+                .type(details.getType())
+                .cost(details.getCost())
                 .rate(details.getRate())
-                .money(money)
+                .money(details.getMoney())
                 .inviteeId(details.getInviteeId())
                 .inviteeName(details.getInviteeName())
-                .continuous(continous)
+                .continuous(details.getContinuous())
                 .executeTime(details.getExecuteTime())
-                .archiveTime(Instant.now())
+                .archiveTime(LocalDateTime.now())
                 .languageType(details.getLanguageType())
                 .build());
-        missionDetailsRepository.deleteById(details.getMissionDetailsId());
-        log.info("MissionDetails {} 归档完毕", details.getMissionDetailsId());
+        missionDetailsRepository.deleteById(missionDetailsId);
+        log.info("MissionDetails {} 归档完毕", missionDetailsId);
     }
 
-    // 其他构建任务的方法，可根据业务需要实现
     private void buildSingleMissionDetails(Mission mission) {
+        Integer missionId = mission.getMissionId();
         Integer inviterLevel;
         Integer type = mission.getType();
-        // String languageType = mission.getLanguageType();
-        String languageType = "en";
-        if (type == 21) {
+        if (type == 11) {
             inviterLevel = 1;
         } else {
             inviterLevel = 2;
         }
 
-        log.info("开始构建missionDetails, missionId = {}, type = {}, languageType = {}", mission.getMissionId(), type, languageType);
+        log.info("开始构建missionDetails, missionId = {}, type = {}", missionId, type);
 
         User user = userRepository.findById(mission.getUserId())
                 .orElse(null);
@@ -441,65 +595,66 @@ public class MissionServiceImpl implements MissionService {
         }
 
         BigDecimal userRate = inviterLevel == 1 ? user.getRate() : user.getTwoRate();
-        if (userRate == null || userRate.compareTo(BigDecimal.ZERO) <= 0) {
-            log.error("missionId {} 用户费率不正确", mission.getMissionId());
+        if (userRate == null || userRate.compareTo(BIGZERO) <= 0) {
+            log.error("missionId {} 用户费率不正确", missionId);
             return;
         }
 
-        BigDecimal money = mission.getMoney() == null ? BigDecimal.ZERO : mission.getMoney();
+        BigDecimal futureMoney = Optional.ofNullable(missionDetailsArchiveRepository.sumMoneyByMissionId(missionId))
+                .orElse(BIGZERO);
+        BigDecimal pastMoney = Optional.ofNullable(mission.getMoney())
+                .orElse(BIGZERO);
+        BigDecimal money = futureMoney.add(pastMoney);
         BigDecimal expectMoney = mission.getExpectMoney();
         BigDecimal needMoney = expectMoney.subtract(money);
+
+        if (needMoney.compareTo(BIGZERO) <= 0) {
+            archiveMission(mission);
+            return;
+        }
+
         BigDecimal overflowFactor = BigDecimal.ONE.add(mission.getOverflow().divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
         BigDecimal overflowLimit = expectMoney.multiply(overflowFactor);
 
         List<BigDecimal> prices = localCourseDetailsRepository.findDistinctValidPrices();
 
         if (prices.isEmpty()) {
-            log.error("未找到有效价格, missionId = {}, type = {}, languageType = {}", mission.getMissionId(), type, languageType);
+            log.error("未找到有效价格, missionId = {}, type = {}", missionId, type);
             return;
         }
 
         Collections.shuffle(prices);
         BigDecimal selectedPrice = null;
         BigDecimal perExecutionMoney = null;
-        Integer continous = 1;
+        Integer continuous = 1;
         for (BigDecimal price : prices) {
-            if (Math.random() < 0.8) {
-                continous = 1;
-            } else {
-                continous = ThreadLocalRandom.current().nextInt(2, 21);
+            if (Math.random() > 0.5) {
+                continuous = ThreadLocalRandom.current().nextInt(2, 21);
             }
 
-            perExecutionMoney = price
-                    .multiply(BigDecimal.valueOf(continous))
-                    .multiply(userRate)
-                    .setScale(2, RoundingMode.HALF_UP);
+            perExecutionMoney = price.multiply(userRate).setScale(2, RoundingMode.HALF_UP);
 
-            if (needMoney.compareTo(BigDecimal.ZERO) > 0 &&
-                money.add(perExecutionMoney).compareTo(overflowLimit) <= 0) {
-                selectedPrice = price;
-                break;
+            if (perExecutionMoney.compareTo(BIGZERO) <= 0) {
+                continue;
+            }
+
+            for (int i = continuous; i >= 1; i--) {
+                BigDecimal tempMoney = perExecutionMoney.multiply(BigDecimal.valueOf(i));
+                if (money.add(tempMoney).compareTo(overflowLimit) <= 0) {
+                    selectedPrice = price;
+                    continuous = i;
+                    break;
+                }
             }
         }
 
-        if (selectedPrice == null || perExecutionMoney == null) {
-            log.error("未找到合适的价格, missionId = {}, type = {}, languageType = {}", mission.getMissionId(), type, languageType);
+        if (selectedPrice == null || perExecutionMoney == null || perExecutionMoney.compareTo(BigDecimal.ZERO) <= 0) {
+            log.error("未找到合适的价格, missionId = {}, type = {}", mission.getMissionId(), type);
             archiveMission(mission);
             return;
         }
 
-        Integer remainingExecutions = (int) Math.ceil(needMoney.divide(perExecutionMoney, 2, RoundingMode.HALF_UP).doubleValue());
-        Instant exeCuteTime = mission.getExecuteTime();
-        Instant nextExecuteTime;
-        Instant endTime = mission.getEndTime();
-        if (exeCuteTime == null) {
-            exeCuteTime = mission.getStartTime();
-        }
-        if (exeCuteTime.isAfter(endTime)) {
-            nextExecuteTime = Instant.now();
-        } else {
-            nextExecuteTime = getNextExecuteTime(exeCuteTime, endTime, remainingExecutions);
-        } 
+        LocalDateTime nextExecuteTime = getNextExecuteTime(mission, perExecutionMoney.multiply(BigDecimal.valueOf(continuous)));
 
         MissionDetails details = MissionDetails.builder()
                 .missionId(mission.getMissionId())
@@ -508,29 +663,27 @@ public class MissionServiceImpl implements MissionService {
                 .cost(selectedPrice)
                 .rate(userRate)
                 .money(perExecutionMoney)
-                .continuous(continous)
+                .continuous(continuous)
                 .executeTime(nextExecuteTime)
-                .languageType(languageType)
-                .continuous(continous)
+                .languageType(mission.getLanguageType())
                 .build();
         missionDetailsRepository.save(details);
 
-        mission.setExecuteTime(details.getExecuteTime());
+        mission.setExecuteTime(nextExecuteTime);
         missionRepository.save(mission);
     }
 
     private void buildAllMissionDetails(Mission mission) {
+        Integer missionId = mission.getMissionId();
         Integer inviterLevel;
         Integer type = mission.getType();
-        // String languageType = mission.getLanguageType();
-        String languageType = "en";
         if (type == 21) {
             inviterLevel = 1;
         } else {
             inviterLevel = 2;
         }
 
-        log.info("开始构建missionDetails, missionId = {}, type = {}, languageType = {}", mission.getMissionId(), type, languageType);
+        log.info("开始构建missionDetails, missionId = {}, type = {}", missionId, type);
 
         User user = userRepository.findById(mission.getUserId())
                 .orElse(null);
@@ -540,12 +693,12 @@ public class MissionServiceImpl implements MissionService {
         }
 
         BigDecimal userRate = inviterLevel == 1 ? user.getRate() : user.getTwoRate();
-        if (userRate == null || userRate.compareTo(BigDecimal.ZERO) <= 0) {
-            log.error("missionId {} 用户费率不正确", mission.getMissionId());
+        if (userRate == null || userRate.compareTo(BIGZERO) <= 0) {
+            log.error("missionId {} 用户费率不正确", missionId);
             return;
         }
 
-        BigDecimal money = mission.getMoney() == null ? BigDecimal.ZERO : mission.getMoney();
+        BigDecimal money = mission.getMoney() == null ? BIGZERO : mission.getMoney();
         BigDecimal expectMoney = mission.getExpectMoney();
         BigDecimal needMoney = expectMoney.subtract(money);
         BigDecimal overflowFactor = BigDecimal.ONE.add(mission.getOverflow().divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
@@ -553,7 +706,7 @@ public class MissionServiceImpl implements MissionService {
 
         List<BigDecimal> prices = localCourseRepository.findDistinctValidPrices();
         if (prices.isEmpty()) {
-            log.error("未找到有效价格, missionId = {}, type = {}, languageType = {}", mission.getMissionId(), type, languageType);
+            log.error("未找到有效价格, missionId = {}, type = {}", missionId, type);
             return;
         }
         Collections.shuffle(prices);
@@ -563,8 +716,12 @@ public class MissionServiceImpl implements MissionService {
 
         for (BigDecimal price : prices) {
             perExecutionMoney = price.multiply(userRate).setScale(2, RoundingMode.HALF_UP);
+
+            if (perExecutionMoney.compareTo(BIGZERO) <= 0) {
+                continue;
+            }
         
-            if (needMoney.compareTo(BigDecimal.ZERO) > 0 &&
+            if (needMoney.compareTo(BIGZERO) > 0 &&
                 money.add(perExecutionMoney).compareTo(overflowLimit) <= 0) {
                 selectedPrice = price;
                 break;
@@ -572,38 +729,26 @@ public class MissionServiceImpl implements MissionService {
         }
 
         if (selectedPrice == null || perExecutionMoney == null) {
-            log.error("未找到合适的价格, missionId = {}, type = {}, languageType = {}", mission.getMissionId(), type, languageType);
+            log.error("未找到合适的价格, missionId = {}, type = {}", missionId, type);
             archiveMission(mission);
             return;
         }
 
-        Integer remainingExecutions = (int) Math.ceil(needMoney.divide(perExecutionMoney, 2, RoundingMode.HALF_UP).doubleValue());
-
-        Instant exeCuteTime = mission.getExecuteTime();
-        Instant nextExecuteTime;
-        Instant endTime = mission.getEndTime();
-        if (exeCuteTime == null) {
-            exeCuteTime = mission.getStartTime();
-        }
-        if (exeCuteTime.isAfter(endTime)) {
-            nextExecuteTime = Instant.now();
-        } else {
-            nextExecuteTime = getNextExecuteTime(exeCuteTime, endTime, remainingExecutions);
-        }
+        LocalDateTime nextExecuteTime = getNextExecuteTime(mission, perExecutionMoney);
 
         MissionDetails details = MissionDetails.builder()
-                .missionId(mission.getMissionId())
+                .missionId(missionId)
                 .userId(mission.getUserId())
                 .type(mission.getType())
                 .cost(selectedPrice)
                 .rate(userRate)
                 .money(perExecutionMoney)
                 .executeTime(nextExecuteTime)
-                .languageType(languageType)
+                .languageType(mission.getLanguageType())
                 .build();
         missionDetailsRepository.save(details);
 
-        mission.setExecuteTime(details.getExecuteTime());
+        mission.setExecuteTime(nextExecuteTime);
         missionRepository.save(mission);
     }
 }

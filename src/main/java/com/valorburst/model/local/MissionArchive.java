@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "mission_archive")
@@ -24,11 +24,17 @@ public class MissionArchive {
     @Column(name = "expect_money")
     private BigDecimal expectMoney;
 
+    @Column(name = "overflow")
+    private BigDecimal overflow;
+
+    @Column(name = "decreasing")
+    private BigDecimal decreasing;
+
     @Column(name = "start_time")
-    private Instant startTime;
+    private LocalDateTime startTime;
 
     @Column(name = "end_time")
-    private Instant endTime;
+    private LocalDateTime endTime;
 
     @Column(name = "money")
     private BigDecimal money;
@@ -37,7 +43,7 @@ public class MissionArchive {
     private Integer type;
 
     @Column(name = "archive_time")
-    private Instant archiveTime;
+    private LocalDateTime archiveTime;
 
     @Column(name = "language_type")
     private String languageType;

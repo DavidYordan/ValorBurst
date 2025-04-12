@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "mission")
@@ -28,11 +28,14 @@ public class Mission {
     @Column(name = "overflow") // 允许溢出
     private BigDecimal overflow;
 
+    @Column(name = "decreasing") // 递减值
+    private BigDecimal decreasing;
+
     @Column(name = "start_time")
-    private Instant startTime; // 开始时间
+    private LocalDateTime startTime; // 开始时间
 
     @Column(name = "end_time") // 结束时间
-    private Instant endTime;
+    private LocalDateTime endTime;
 
     @Column(name = "status") // 0:暂停中 1:进行中
     private Boolean status;
@@ -50,7 +53,7 @@ public class Mission {
     private Integer type;
 
     @Column(name = "execute_time") // 下次执行时间
-    private Instant executeTime;
+    private LocalDateTime executeTime;
 
     @Column(name = "language_type")
     private String languageType;

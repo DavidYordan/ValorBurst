@@ -1,7 +1,7 @@
 package com.valorburst.model.local;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 import com.valorburst.model.remote.RemoteCourseDetails;
 
@@ -31,10 +31,10 @@ public class LocalCourseDetails {
     private String videoUrl;
 
     @Column(name = "create_time")
-    private Instant createTime;
+    private LocalDateTime createTime;
 
     @Column(name = "update_time")
-    private Instant updateTime;
+    private LocalDateTime updateTime;
 
     @Column(name = "title_img")
     private String titleImg;

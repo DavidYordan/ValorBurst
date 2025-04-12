@@ -4,7 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Table;
 
 import java.lang.reflect.Field;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -107,8 +107,8 @@ public class JpaSqlBuilder {
             return "NULL";
         } else if (val instanceof Number) {
             return val.toString();
-        } else if (val instanceof Instant) {
-            return "'" + ((Instant) val).toString() + "'";
+        } else if (val instanceof LocalDateTime) {
+            return "'" + ((LocalDateTime) val).toString() + "'";
         } else {
             return "'" + val.toString().replace("'", "''") + "'";
         }

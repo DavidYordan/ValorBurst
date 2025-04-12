@@ -9,10 +9,17 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface MissionRepository extends JpaRepository<Mission, Integer> {
 
-    @Query("""
-            select m from Mission m
-            where m.executeTime is null
-            and m.status = true
-    """)
-    List<Mission> findAllNeedInit();
+    @Query(value = """
+            select *
+            from mission
+            where status = 1
+            """, nativeQuery = true)
+    List<Mission> findMissions();
+
+    @Query(value = """
+            select *
+            from mission
+            where user_id = :userId
+            """, nativeQuery = true)
+    List<Mission> findAllByUserId(Integer userId);
 }

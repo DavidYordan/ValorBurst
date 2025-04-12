@@ -1,7 +1,7 @@
 package com.valorburst.model.remote;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -32,7 +32,7 @@ public class Invite {
     private BigDecimal money;
 
     @Column(name = "create_time")
-    private Instant createTime;
+    private LocalDateTime createTime;
 
     @Column(name = "user_type")
     private Integer userType;

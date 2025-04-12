@@ -10,7 +10,7 @@ import com.valorburst.model.local.User;
 import com.valorburst.model.remote.projection.UserRemoteProjection;
 import com.valorburst.repository.local.UserRepository;
 import com.valorburst.repository.remote.TbUserRepository;
-import com.valorburst.service.UsersService;
+import com.valorburst.service.UserService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,27 +18,43 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class UsersServiceImpl implements UsersService{
+public class UserServiceImpl implements UserService{
+
+    private static final int BATCHSIZE = 100;
 
     private final UserRepository userRepository;
     private final TbUserRepository tbUserRepository;
 
     @Override
-    public List<User> syncAllUsers() {
+    public void syncAllUsers() {
         List<Integer> userIds = userRepository.fetchAllUserIds();
-        List<UserRemoteProjection> users = tbUserRepository.findProjectedByUserIds(userIds);
-        List<User> localUsers = users.stream().map(this::mapToLocal).toList();
-        userRepository.saveAll(localUsers);
-        return localUsers;
+        for (int i = 0; i < userIds.size(); i += BATCHSIZE) {
+            int end = Math.min(i + BATCHSIZE, userIds.size());
+            List<Integer> batchUserIds = userIds.subList(i, end);
+            List<User> users = tbUserRepository.findProjectedByUserIds(batchUserIds)
+                    .stream()
+                    .map(this::mapToLocal)
+                    .toList();
+            userRepository.saveAll(users);
+        }
+    }
+
+    // 获取所有用户
+    @Override
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
     }
 
     @Override
     public Optional<User> updateUserByInput(String input) {
-        Optional<UserRemoteProjection> userOpt = input.startsWith("+")
-                ? tbUserRepository.findProjectedByPhone(input)
-                : input.contains("@")
-                    ? tbUserRepository.findProjectedByEmail(input)
-                    : Optional.empty();
+        Optional<UserRemoteProjection> userOpt = Optional.empty();
+        if (input.startsWith("+")) {
+            userOpt = tbUserRepository.findProjectedByPhone(input);
+        } else if (input.contains("@")) {
+            userOpt = tbUserRepository.findProjectedByEmail(input);
+        } else if (input.length() == 6) {
+            userOpt = tbUserRepository.findProjectedByInvitationCode(input);
+        }
 
         if (userOpt.isPresent()) {
             UserRemoteProjection user = userOpt.get();

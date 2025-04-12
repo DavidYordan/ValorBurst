@@ -16,6 +16,8 @@ import com.valorburst.repository.remote.RemoteCommonInfoRepository;
 import com.valorburst.repository.remote.RemoteCourseDetailsRepository;
 import com.valorburst.repository.remote.RemoteCourseRepository;
 import com.valorburst.repository.remote.RemoteVipDetailsRepository;
+import com.valorburst.service.UserService;
+import com.valorburst.util.DedupingExecutor;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,9 +29,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -40,16 +41,16 @@ public class DataSyncScheduler {
     private static final int BATCHSIZE = 1000; // 每次查询的批量大小
 
     private final LocalCommonInfoRepository localCommonInfoRepository;
-    private final LocalVipDetailsRepository localVipDetailsRepository;
-
     private final LocalCourseRepository localCourseRepository;
     private final LocalCourseDetailsRepository localCourseDetailsRepository;
+    private final LocalVipDetailsRepository localVipDetailsRepository;
     private final RemoteCourseRepository remoteCourseRepository;
     private final RemoteCourseDetailsRepository courseDetailsRepository;
     private final RemoteCommonInfoRepository remoteCommonInfoRepository;
     private final RemoteVipDetailsRepository remoteVipDetailsRepository;
 
-    private final Executor missionExecutor;
+    private final DedupingExecutor dedupingExecutor;
+    private final UserService usersService;
 
     /**
      * 每隔 30 分钟执行一次同步任务
@@ -59,12 +60,26 @@ public class DataSyncScheduler {
     public void syncAllData() {
         log.info("开始同步所有数据...");
         try {
-            missionExecutor.execute(this::syncVipDetails);
-            missionExecutor.execute(this::syncCommonInfo);
-            missionExecutor.execute(this::syncCourse);
-            missionExecutor.execute(this::syncCourseDetails);
+            dedupingExecutor.execute(this::syncCommonInfo, "commonInfo");
+            dedupingExecutor.execute(this::syncCourse, "course");
+            dedupingExecutor.execute(this::syncCourseDetails, "courseDetails");
+            dedupingExecutor.execute(this::syncVipDetails, "vipDetails");
         } catch (Exception e) {
             log.error("数据同步过程中发生异常: ", e);
+        }
+    }
+
+    /**
+     * 每隔 5 分钟执行一次用户数据同步任务
+     */
+    @Scheduled(fixedRate = 5 * 60 * 1000)
+    @Transactional(transactionManager = "localTransactionManager")
+    public void syncUser() {
+        log.info("开始同步用户数据...");
+        try {
+            dedupingExecutor.execute(usersService::syncAllUsers, "user");
+        } catch (Exception e) {
+            log.error("用户数据同步过程中发生异常: ", e);
         }
     }
 
@@ -85,7 +100,6 @@ public class DataSyncScheduler {
                 log.info("同步 CommonInfo 数量: {}", remoteCommonInfos.size());
             }
 
-            log.info("同步 CommonInfo 数量: {}", remoteCommonInfoIds.size());
         } catch (Exception e) {
             log.error("同步 CommonInfo 数据时发生异常: ", e);
         }
@@ -95,9 +109,9 @@ public class DataSyncScheduler {
         log.info("开始同步 Course 数据...");
     
         try {
-            Instant lastUpdateTime = localCourseRepository.findMaxUpdateTime();
+            LocalDateTime lastUpdateTime = localCourseRepository.findMaxUpdateTime();
             if (lastUpdateTime == null) {
-                lastUpdateTime = Instant.EPOCH;
+                lastUpdateTime = LocalDateTime.of(1970, 1, 1, 0, 0, 0);
                 log.debug("Course 本地数据库的最新更新时间为空，设置为默认值: {}", lastUpdateTime);
             } else {
                 log.debug("Course 本地数据库的最新更新时间: {}", lastUpdateTime);
@@ -136,9 +150,9 @@ public class DataSyncScheduler {
         log.info("开始同步 CourseDetails 数据...");
     
         try {
-            Instant lastUpdateTime = localCourseDetailsRepository.findMaxUpdateTime();
+            LocalDateTime lastUpdateTime = localCourseDetailsRepository.findMaxUpdateTime();
             if (lastUpdateTime == null) {
-                lastUpdateTime = Instant.EPOCH;
+                lastUpdateTime = LocalDateTime.of(1970, 1, 1, 0, 0, 0);
                 log.debug("CourseDetails 本地数据库的最新更新时间为空，设置为默认值: {}", lastUpdateTime);
             } else {
                 log.debug("CourseDetails 本地数据库的最新更新时间: {}", lastUpdateTime);
@@ -172,7 +186,6 @@ public class DataSyncScheduler {
             log.error("同步 CourseDetails 数据时发生异常: ", e);
         }
     }
-    
 
     private void syncVipDetails() {
         log.info("开始同步 VipDetails 数据...");

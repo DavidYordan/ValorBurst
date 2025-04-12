@@ -16,16 +16,28 @@ public class MissionScheduler {
 
     @Scheduled(fixedDelay = 60 * 1000)
     public void schedulerGenerate() {
-        missionService.generateInitMissions();
+        try {
+            missionService.checkMissions();
+        } catch (Exception e) {
+            log.error("Error in schedulerGenerate: {}", e.getMessage(), e);
+        }
     }
 
     @Scheduled(fixedDelay = 1 * 1000)
     public void schedulerExecute() {
-        missionService.executeDueMissions();
+        try {
+            missionService.executeDueMissions();
+        } catch (Exception e) {
+            log.error("Error in schedulerExecute: {}", e.getMessage(), e);
+        }
     }
 
     @Scheduled(fixedDelay = 30 * 60 * 1000)
     public void schedulerCheckTimeout() {
-        missionService.checkTimeoutMissions();
+        try {
+            missionService.checkTimeoutMissions();
+        } catch (Exception e) {
+            log.error("Error in schedulerCheckTimeout: {}", e.getMessage(), e);
+        }
     }
 }

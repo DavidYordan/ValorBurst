@@ -1,10 +1,12 @@
 *.code-workspace
 *.log
 *.json
+*.p12
 *.properties
 *.py
 *.sql
 *.txt
 JIEGOU.md
+Test.java
 /log
 /target

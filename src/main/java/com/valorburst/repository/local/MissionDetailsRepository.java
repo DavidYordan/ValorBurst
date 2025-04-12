@@ -2,23 +2,38 @@ package com.valorburst.repository.local;
 
 import com.valorburst.model.local.MissionDetails;
 
-import java.time.Instant;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface MissionDetailsRepository extends JpaRepository<MissionDetails, Integer> {
 
     @Query(value = """
+        SELECT COUNT(*) 
+        FROM mission_details
+        WHERE mission_id = :missionId
+    """, nativeQuery = true)
+    Integer countByMissionId(@Param("missionId") Integer missionId);
+
+    @Query(value = """
+        SELECT COUNT(*) 
+        FROM mission_details
+        WHERE mission_id = :missionId
+        AND type IN (11, 12)
+        AND invitee_id IS NULL
+    """, nativeQuery = true)
+    Integer countSignalByMissionId(@Param("missionId") Integer missionId);
+
+    @Query(value = """
         SELECT md.* 
         FROM mission_details md
         JOIN mission m ON md.mission_id = m.mission_id
         WHERE md.execute_time < CURRENT_TIMESTAMP
-        AND md.executing = false
-        AND m.status = true
+        AND m.status = 1
     """, nativeQuery = true)
     List<MissionDetails> findAllNeedExecute();
 
@@ -27,16 +42,14 @@ public interface MissionDetailsRepository extends JpaRepository<MissionDetails, 
         FROM mission_details md
         JOIN mission m ON md.mission_id = m.mission_id
         WHERE md.execute_time < :timeout
-        AND m.status = true
+        AND m.status = 1
     """, nativeQuery = true)
-    List<MissionDetails> findAllTimeoutExecute(@Param("timeout") Instant timeout);
+    List<MissionDetails> findAllTimeoutExecute(@Param("timeout") LocalDateTime timeout);
 
-    @Modifying
     @Query(value = """
-        UPDATE mission_details
-        SET executing = true
-        WHERE mission_details_id = :id AND executing = false
+        SELECT SUM(money) 
+        FROM mission_details
+        WHERE mission_id = :missionId
     """, nativeQuery = true)
-    Integer tryMarkExecuting(@Param("id") Integer id);
-        
+    BigDecimal sumMoneyByMissionId(@Param("missionId") Integer missionId);
 }

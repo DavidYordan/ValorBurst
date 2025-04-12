@@ -1,7 +1,7 @@
 package com.valorburst.repository.local;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,8 +11,10 @@ import com.valorburst.model.local.LocalCourse;
 
 public interface LocalCourseRepository extends JpaRepository<LocalCourse, Integer> {
 
-    @Query("SELECT MAX(update_time) FROM course")
-    Instant findMaxUpdateTime();
+    @Query(value = """
+        SELECT MAX(update_time) FROM course
+        """, nativeQuery = true)
+    LocalDateTime findMaxUpdateTime();
 
     @Query(value = """
         SELECT DISTINCT price FROM course

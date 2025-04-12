@@ -15,7 +15,7 @@ public class Setting {
     @Column(name = "id")
     private Integer id;
 
-    @Column(name = "key")
+    @Column(name = "`key`")
     private String key;
 
     @Column(name = "value")

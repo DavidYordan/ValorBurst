@@ -1,6 +1,6 @@
 package com.valorburst.repository.remote;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -10,5 +10,5 @@ import com.valorburst.model.remote.RemoteCourse;
 
 public interface RemoteCourseRepository extends JpaRepository<RemoteCourse, Integer> {
 
-    Page<RemoteCourse> findByUpdateTimeAfter(Instant updateTime, PageRequest pageRequest);
+    Page<RemoteCourse> findByUpdateTimeAfter(LocalDateTime updateTime, PageRequest pageRequest);
 }

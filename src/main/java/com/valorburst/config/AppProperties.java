@@ -16,4 +16,11 @@ public class AppProperties {
         private String token;
         private String chatId;
     }
+
+    private Auth auth;
+
+    @Data
+    public static class Auth {
+        private String secretKey;
+    }
 }

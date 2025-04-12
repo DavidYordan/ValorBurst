@@ -1,7 +1,7 @@
 package com.valorburst.model.remote;
 
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -47,10 +47,10 @@ public class RemoteCourse {
     private Integer isDelete;
 
     @Column(name = "create_time")
-    private Instant createTime;
+    private LocalDateTime createTime;
 
     @Column(name = "update_time")
-    private Instant updateTime;
+    private LocalDateTime updateTime;
 
     @Column(name = "msg_url")
     private String msgUrl;
