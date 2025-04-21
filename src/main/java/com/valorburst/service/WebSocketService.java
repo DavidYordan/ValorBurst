@@ -8,7 +8,8 @@ import com.valorburst.dto.UserResponseDto;
 
 public interface WebSocketService {
     List<UserResponseDto> getAllUsers();
-    List<MissionResponseDto> getAllMissions(Integer userId);
+    List<MissionResponseDto> getAllMissions();
+    List<MissionResponseDto> getMissions(Integer userId);
     PircesResponseDto getPrices();
     UserResponseDto updateUserByInput(String input);
 }

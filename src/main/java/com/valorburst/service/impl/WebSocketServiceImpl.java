@@ -35,8 +35,13 @@ public class WebSocketServiceImpl implements WebSocketService {
     }
 
     @Override
-    public List<MissionResponseDto> getAllMissions(Integer userId) {
-        return missionService.getAllMissionDtos(userId);
+    public List<MissionResponseDto> getAllMissions() {
+        return missionService.getAllMissionDtos();
+    }
+
+    @Override
+    public List<MissionResponseDto> getMissions(Integer userId) {
+        return missionService.getMissionDtos(userId);
     }
 
     @Override

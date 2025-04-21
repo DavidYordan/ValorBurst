@@ -56,46 +56,7 @@ public class MyWebSocketHandler extends TextWebSocketHandler {
         String requestId = request.getRequestId();
 
         String responseJson = null;
-        if (type.equals("GET_ALL_USERS")) {
-            List<UserResponseDto> data = webSocketService.getAllUsers();
-            responseJson = objectMapper.writeValueAsString(
-                    WebSocketDto.<List<UserResponseDto>>builder()
-                        .type(type)
-                        .requestId(requestId)
-                        .message("获取成功")
-                        .data(data)
-                        .build());
-        } else if (type.equals("UPDATE_USER_BY_INPUT")) {
-            if (request.getData() instanceof String input) {
-                UserResponseDto data = webSocketService.updateUserByInput(input);
-                responseJson = objectMapper.writeValueAsString(
-                        WebSocketDto.<UserResponseDto>builder()
-                            .type(type)
-                            .requestId(requestId)
-                            .message("更新成功")
-                            .data(data)
-                            .build());
-            }
-        } else if (type.equals("GET_MISSIONS")) {
-            Integer input = objectMapper.convertValue(request.getData(), Integer.class);
-            List<MissionResponseDto> data = webSocketService.getAllMissions(input);
-            responseJson = objectMapper.writeValueAsString(
-                    WebSocketDto.<List<MissionResponseDto>>builder()
-                        .type(type)
-                        .requestId(requestId)
-                        .message("获取成功")
-                        .data(data)
-                        .build());
-        } else if (type.equals("GET_PRICES")) {
-            PircesResponseDto data = webSocketService.getPrices();
-            responseJson = objectMapper.writeValueAsString(
-                    WebSocketDto.<PircesResponseDto>builder()
-                        .type(type)
-                        .requestId(requestId)
-                        .message("获取成功")
-                        .data(data)
-                        .build());
-        } else if (type.equals("ADD_MISSION")) {
+        if (type.equals("ADD_MISSION")) {
             AddMissionRequestDto data = objectMapper.convertValue(
                 request.getData(),
                 new TypeReference<AddMissionRequestDto>() {}
@@ -115,6 +76,103 @@ public class MyWebSocketHandler extends TextWebSocketHandler {
                             .type(type)
                             .requestId(requestId)
                             .message("添加失败: " + e.getMessage())
+                            .build());
+            }
+        } else if (type.equals("GET_ALL_USERS")) {
+            try{
+                List<UserResponseDto> data = webSocketService.getAllUsers();
+                responseJson = objectMapper.writeValueAsString(
+                        WebSocketDto.<List<UserResponseDto>>builder()
+                            .type(type)
+                            .requestId(requestId)
+                            .message("获取成功")
+                            .data(data)
+                            .build());
+            } catch (Exception e) {
+                log.error("获取用户失败: {}", e.getMessage());
+                responseJson = objectMapper.writeValueAsString(
+                        WebSocketDto.<List<UserResponseDto>>builder()
+                            .type(type)
+                            .requestId(requestId)
+                            .message("获取失败: " + e.getMessage())
+                            .build());
+            }
+        } else if (type.equals("GET_ALL_MISSIONS")) {
+            try{
+                List<MissionResponseDto> data = webSocketService.getAllMissions();
+                responseJson = objectMapper.writeValueAsString(
+                        WebSocketDto.<List<MissionResponseDto>>builder()
+                            .type(type)
+                            .requestId(requestId)
+                            .message("获取成功")
+                            .data(data)
+                            .build());
+            } catch (Exception e) {
+                log.error("获取任务失败: {}", e.getMessage());
+                responseJson = objectMapper.writeValueAsString(
+                        WebSocketDto.<List<MissionResponseDto>>builder()
+                            .type(type)
+                            .requestId(requestId)
+                            .message("获取失败: " + e.getMessage())
+                            .build());
+            }
+        } else if (type.equals("GET_MISSIONS")) {
+            try{
+                Integer input = objectMapper.convertValue(request.getData(), Integer.class);
+                List<MissionResponseDto> data = webSocketService.getMissions(input);
+                responseJson = objectMapper.writeValueAsString(
+                        WebSocketDto.<List<MissionResponseDto>>builder()
+                            .type(type)
+                            .requestId(requestId)
+                            .message("获取成功")
+                            .data(data)
+                            .build());
+            } catch (Exception e) {
+                log.error("获取任务失败: {}", e.getMessage());
+                responseJson = objectMapper.writeValueAsString(
+                        WebSocketDto.<List<MissionResponseDto>>builder()
+                            .type(type)
+                            .requestId(requestId)
+                            .message("获取失败: " + e.getMessage())
+                            .build());
+            }
+        } else if (type.equals("GET_PRICES")) {
+            try {
+                PircesResponseDto data = webSocketService.getPrices();
+                responseJson = objectMapper.writeValueAsString(
+                        WebSocketDto.<PircesResponseDto>builder()
+                            .type(type)
+                            .requestId(requestId)
+                            .message("获取成功")
+                            .data(data)
+                            .build());
+            } catch (Exception e) {
+                log.error("获取价格失败: {}", e.getMessage());
+                responseJson = objectMapper.writeValueAsString(
+                        WebSocketDto.<PircesResponseDto>builder()
+                            .type(type)
+                            .requestId(requestId)
+                            .message("获取失败: " + e.getMessage())
+                            .build());
+            }
+        } else if (type.equals("UPDATE_USER_BY_INPUT")) {
+            try {
+                String input = objectMapper.convertValue(request.getData(), String.class);
+                UserResponseDto data = webSocketService.updateUserByInput(input);
+                responseJson = objectMapper.writeValueAsString(
+                        WebSocketDto.<UserResponseDto>builder()
+                            .type(type)
+                            .requestId(requestId)
+                            .message("更新成功")
+                            .data(data)
+                            .build());
+            } catch (Exception e) {
+                log.error("更新用户失败: {}", e.getMessage());
+                responseJson = objectMapper.writeValueAsString(
+                        WebSocketDto.<UserResponseDto>builder()
+                            .type(type)
+                            .requestId(requestId)
+                            .message("更新失败: " + e.getMessage())
                             .build());
             }
         }

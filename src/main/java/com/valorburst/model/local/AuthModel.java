@@ -30,6 +30,9 @@ public class AuthModel {
     @Column(name = "permission")
     private Integer permission;
 
+    @Column(name = "token_never_expire")
+    private Boolean tokenNeverExpire;
+
     @Column(name = "create_at")
     private LocalDateTime createAt;
 

@@ -106,6 +106,9 @@ public class MissionServiceImpl implements MissionService {
                             .startTime(startTime)
                             .endTime(endTime)
                             .type(type)
+                            .status(true)
+                            .money(BigDecimal.ZERO)
+                            .todayMoney(BigDecimal.ZERO)
                             .languageType(languageType)
                             .build();
                 })
@@ -233,7 +236,30 @@ public class MissionServiceImpl implements MissionService {
     }
 
     @Override
-    public List<MissionResponseDto> getAllMissionDtos(Integer userId) {
+    public List<MissionResponseDto> getAllMissionDtos() {
+        List<Mission> missions = missionRepository.findAll();
+        List<MissionResponseDto> missionDtos = missions.stream()
+                .map(mission -> MissionResponseDto.builder()
+                        .missionId(mission.getMissionId())
+                        .userId(mission.getUserId())
+                        .expectMoney(mission.getExpectMoney())
+                        .overflow(mission.getOverflow())
+                        .decreasing(mission.getDecreasing())
+                        .startTime(mission.getStartTime())
+                        .endTime(mission.getEndTime())
+                        .status(mission.getStatus())
+                        .money(mission.getMoney())
+                        .todayMoney(mission.getTodayMoney())
+                        .type(mission.getType())
+                        .executeTime(mission.getExecuteTime())
+                        .languageType(mission.getLanguageType())
+                        .build())
+                .collect(Collectors.toCollection(ArrayList::new));
+        return missionDtos;
+    }
+
+    @Override
+    public List<MissionResponseDto> getMissionDtos(Integer userId) {
         List<Mission> missions = missionRepository.findAllByUserId(userId);
         List<MissionArchive> archives = missionArchiveRepository.findAllByUserId(userId);
         List<MissionResponseDto> missionDtos = missions.stream()
@@ -600,18 +626,9 @@ public class MissionServiceImpl implements MissionService {
             return;
         }
 
-        BigDecimal futureMoney = Optional.ofNullable(missionDetailsArchiveRepository.sumMoneyByMissionId(missionId))
+        BigDecimal money = Optional.ofNullable(mission.getMoney())
                 .orElse(BIGZERO);
-        BigDecimal pastMoney = Optional.ofNullable(mission.getMoney())
-                .orElse(BIGZERO);
-        BigDecimal money = futureMoney.add(pastMoney);
         BigDecimal expectMoney = mission.getExpectMoney();
-        BigDecimal needMoney = expectMoney.subtract(money);
-
-        if (needMoney.compareTo(BIGZERO) <= 0) {
-            archiveMission(mission);
-            return;
-        }
 
         BigDecimal overflowFactor = BigDecimal.ONE.add(mission.getOverflow().divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
         BigDecimal overflowLimit = expectMoney.multiply(overflowFactor);

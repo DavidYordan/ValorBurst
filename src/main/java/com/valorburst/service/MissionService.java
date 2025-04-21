@@ -15,5 +15,7 @@ public interface MissionService {
     
     void executeDueMissions();
 
-    List<MissionResponseDto> getAllMissionDtos(Integer userId);
+    List<MissionResponseDto> getAllMissionDtos();
+
+    List<MissionResponseDto> getMissionDtos(Integer userId);
 }

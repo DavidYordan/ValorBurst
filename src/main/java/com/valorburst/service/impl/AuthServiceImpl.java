@@ -1,5 +1,7 @@
 package com.valorburst.service.impl;
 
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -101,12 +103,26 @@ public class AuthServiceImpl implements AuthService {
     public Boolean validateToken(String token) {
         try {
             Jwts.parserBuilder()
-                .setSigningKey(secretKey)
-                .build()
-                .parseClaimsJws(token);
+                    .setSigningKey(secretKey)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+
             return true;
-        } catch (Exception e) {
-            log.error("Token验证失败: {}", e.getMessage());
+
+        } catch (ExpiredJwtException e) {
+            String username = e.getClaims().getSubject();
+            Boolean tokenNeverExpire = authModelRepository.findTokenNeverExpireByUsername(username);
+            
+            if (tokenNeverExpire != null && tokenNeverExpire) {
+                return true;
+            }
+
+            log.warn("Token 过期：{}", username);
+            return false;
+
+        } catch (JwtException e) {
+            log.error("JWT 无效: {}", e.getMessage());
             return false;
         }
     }
