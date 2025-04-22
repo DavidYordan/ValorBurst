@@ -6,4 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface MissionDetailsCompensationRepository extends JpaRepository<MissionDetailsCompensation, Integer> {
 
+    Integer countByUserId(Integer userId);
 }

@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface MissionRepository extends JpaRepository<Mission, Integer> {
 
@@ -21,5 +22,12 @@ public interface MissionRepository extends JpaRepository<Mission, Integer> {
             from mission
             where user_id = :userId
             """, nativeQuery = true)
-    List<Mission> findAllByUserId(Integer userId);
+    List<Mission> findAllByUserId(@Param("userId") Integer userId);
+
+    @Query(value = """
+        select *
+        from mission
+        where status = 1 and user_id in (:userIds)
+        """, nativeQuery = true)
+    List<Mission> findAllActiveByUserIds(@Param("userIds") List<Integer> userIds);
 }
